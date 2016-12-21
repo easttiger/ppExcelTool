@@ -98,7 +98,7 @@ lbl_set_buttons:
       .Font.Color = RGB(255, 0, 0)
       With .Validation
         .Delete
-        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="bp,rprop,rprop-"
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="bp,rprop,rprop-,rmsprop"
         .IgnoreBlank = True
         .InCellDropdown = True
         .InputTitle = ""
@@ -220,6 +220,45 @@ lbl_set_buttons:
         .ShowError = False
       End With
     End With
+    .Cells(1, 13).Value = "rmsprop AR"
+    With .Cells(2, 13)
+      .Value = 0.8
+      .Name = "'" & shtDes.Name & "'!rmsprop_ar_coef"
+      .Font.Color = RGB(255, 0, 0)
+      .NumberFormat = "General"
+      .EntireColumn.ColumnWidth = 9.33
+      With .Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="0.99,0.95,0.9,0.8,0.7,0.6,0.5"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .InputTitle = ""
+        .ErrorTitle = ""
+        .InputMessage = ""
+        .ErrorMessage = ""
+        .ShowInput = True
+        .ShowError = False
+      End With
+    End With
+'    .Cells(1, 14).Value = "use Best"
+'    With .Cells(2, 14)
+'      .Value = False
+'      .Name = "'" & shtDes.Name & "'!useBestWeightsPerEpoch"
+'      .Font.Color = RGB(255, 0, 0)
+'      .NumberFormat = "General"
+'      With .Validation
+'        .Delete
+'        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="FALSE,TRUE"
+'        .IgnoreBlank = True
+'        .InCellDropdown = True
+'        .InputTitle = ""
+'        .ErrorTitle = ""
+'        .InputMessage = ""
+'        .ErrorMessage = ""
+'        .ShowInput = True
+'        .ShowError = False
+'      End With
+'    End With
     
   End With
   With btnRange.Offset(0, -1).resize(2, 1)
@@ -497,12 +536,14 @@ lbl_name_big_regions:
   
   
   'previous state snapshot
+lbl_layout_previous_weights:
   With shtDes.UsedRange(shtDes.UsedRange.Count).Offset(2, 0).End(xlToLeft)
     .Value = "Previous"
     .Offset(1, 0).resize(shtDes.Range("WorkRange").Rows.Count, shtDes.Range("WorkRange").Columns.Count).Name = "'" & shtDes.Name & "'!prevState"
   End With
   shtDes.Range("WorkRange").Copy: shtDes.Range("prevState").PasteSpecial xlPasteFormats
-  'rprop weights back tracking
+
+lbl_layout_rprop_weights:
   k = shtDes.Range("W_1").Cells(1, 1).Column - shtDes.Range("G_1").Cells(1, 1).Column
   
   With shtDes.UsedRange(shtDes.UsedRange.Count).Offset(2, 0).End(xlToLeft)
@@ -510,28 +551,59 @@ lbl_name_big_regions:
     .Offset(0, k).Value = "rprop change size : current"
     .Offset(1, 0).resize(shtDes.Range("WorkRange").Rows.Count, shtDes.Range("WorkRange").Columns.Count).Name = "'" & shtDes.Name & "'!rpropUse"
   End With
+ 
+  
   shtDes.Range("WorkRange").Copy: shtDes.Range("rpropUse").PasteSpecial xlPasteFormats
   shtDes.Range("WorkRange").Copy: shtDes.Range("rpropUse").PasteSpecial xlPasteValues
   shtDes.Range("rpropUse").Cells(1, 1).resize(shtDes.Range("Grads").Rows.Count, shtDes.Range("Grads").Columns.Count).Name = "'" & shtDes.Name & "'!prevRPROP"
   shtDes.Range("rpropUse").Cells(1, 1 + k).resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!rprop"
-  h = shtDes.Range("rpropUse").Rows.Count + 2
-  shtDes.Range("rpropUse").Cells(h, 1 + k).resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!rpropNextWeights"
-  shtDes.Range("Weights").Copy: shtDes.Range("rpropNextWeights").PasteSpecial xlPasteFormats
   
-  Call initRpropNextWeights(shtDes)
+lbl_layout_rmsprop_weights:
+  With shtDes.UsedRange(shtDes.UsedRange.Count).Offset(2, 0).End(xlToLeft)
+    .Value = "rmsprop AR squared weights : prev"
+    .Offset(0, k).Value = "rmsprop AR squared weights : current"
+    .Offset(1, 0).resize(shtDes.Range("WorkRange").Rows.Count, shtDes.Range("WorkRange").Columns.Count).Name = "'" & shtDes.Name & "'!rmspropUse"
+  End With
+  shtDes.Range("WorkRange").Copy: shtDes.Range("rmspropUse").PasteSpecial xlPasteFormats
+  shtDes.Range("WorkRange").Copy: shtDes.Range("rmspropUse").PasteSpecial xlPasteValues
+  shtDes.Range("rmspropUse").Cells(1, 1).resize(shtDes.Range("Grads").Rows.Count, shtDes.Range("Grads").Columns.Count).Name = "'" & shtDes.Name & "'!prevRMSPROP"
+  shtDes.Range("rmspropUse").Cells(1, 1 + k).resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!rmsprop"
   
+  h = shtDes.Range("rmspropUse").Rows.Count + 2
+'  shtDes.Range("rmspropUse").Cells(h, 1).resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!bestWeights"
+'  shtDes.Range("Weights").Copy: shtDes.Range("bestWeights").PasteSpecial xlPasteFormats
+  shtDes.Range("rmspropUse").Cells(h, 1 + k).resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!nextWeights"
+  shtDes.Range("Weights").Copy: shtDes.Range("nextWeights").PasteSpecial xlPasteFormats
+  
+  Call initNextWeights(shtDes)
+lbl_init_rprop_weights:
   Dim grad2prevRPROP As Long: grad2prevRPROP = shtDes.Range("Grads").Cells(1, 1).Row - shtDes.Range("prevRPROP").Cells(1, 1).Row
   Dim prevGrad2prevRPROP As Long: prevGrad2prevRPROP = shtDes.Range("prevState").Cells(1, 1).Row - shtDes.Range("prevRPROP").Cells(1, 1).Row
   For Each r In shtDes.Range("prevRPROP").Cells
     If IsNumeric(r.Value) And Not Trim(r.FormulaLocal) = "" Then
       '=MIN(rpropcap,MAX(rpropfloor, IF(SIGN(A45)*SIGN(A3)>0,rpropup,IF(SIGN(A45)*SIGN(A3)<0,rpropdn,0))*A81))
-      r.Offset(0, k).FormulaLocal = Replace(Replace(Replace("=MIN(rpropcap,MAX(rpropfloor, IF(SIGN(A45)*SIGN(A3)>0,rpropup,IF(SIGN(A45)*SIGN(A3)<0,rpropdn,0))*A81))", _
-                                            "A45", r.Offset(prevGrad2prevRPROP, 0).AddressLocal), _
-                                            "A3", r.Offset(grad2prevRPROP, 0).AddressLocal), _
-                                            "A81", r.AddressLocal)
+      r.Offset(0, k).FormulaLocal = Replace(Replace(Replace("=MIN(rpropcap,MAX(rpropfloor, IF(SIGN(@prevWeight@)*SIGN(@Grad@)>0,rpropup,IF(SIGN(@prevWeight@)*SIGN(@Grad@)<0,rpropdn,0))*@prevRprop@))", _
+                                            "@prevWeight@", r.Offset(prevGrad2prevRPROP, 0).AddressLocal), _
+                                            "@Grad@", r.Offset(grad2prevRPROP, 0).AddressLocal), _
+                                            "@prevRprop@", r.AddressLocal)
     End If
   Next r
+lbl_init_rmsprop_weights:
   shtDes.Calculate
+  Dim Grad2prevRMSPROP As Long: Grad2prevRMSPROP = shtDes.Range("Grads").Cells(1, 1).Row - shtDes.Range("prevRMSPROP").Cells(1, 1).Row
+  For Each r In shtDes.Range("prevRMSPROP").Cells
+    If IsNumeric(r.Value) And Not Trim(r.FormulaLocal) = "" Then
+      'r.Value = r.Offset(Grad2prevRMSPROP, 0).Value ^ 2
+      r.Value = 0
+      '=rmsprop_ar_coef*A70+(1-rmsprop_ar_coef)*A3*A3
+      r.Offset(0, k).FormulaLocal = Replace(Replace("=@prevSquare@ + @Grad@^2", _
+                                            "@prevSquare@", r.AddressLocal), _
+                                            "@Grad@", r.Offset(Grad2prevRMSPROP, 0).AddressLocal)
+    End If
+  Next r
+  
+  shtDes.Calculate
+  'shtDes.Range("bestWeights").Value2 = shtDes.Range("nextWeights").Value2
   shtDes.Visible = xlSheetVisible
   shtDes.Select
 e:

@@ -61,31 +61,36 @@ On Error GoTo 0
   Dim epoch As Long: epoch = ws.Range("epoch").Value
   Dim d As Long: d = ws.Range("Grads").Cells(1, 1).Column - ws.Range("Weights").Cells(1, 1).Column
   Dim u As Long: u = ws.Range("prevState").Cells(1, 1).Row - ws.Range("Weights").Cells(1, 1).Row
-  Dim r As Range, i As Long, j As Long, loss_last As Double, loss_start As Double
+  Dim r As Range, i As Long, j As Long, loss_last As Double, loss_start As Double, loss_lastEpoch_train As Double, loss_lastEpoch_test As Double
   Dim nLayers As Long: nLayers = ws.Range("nLayers").Value
   Dim roll As Long: roll = ws.Range("roll").Value
 lbl_vbmemory:
   For Each r In ws.Range("Weights").Cells
     If r.hasFormula Then j = j + 1
   Next r
+  If j > 0 Then
   Dim fmlacells: ReDim fmlacells(1 To j, 1 To 3)
-  For Each r In ws.Range("Weights").Cells
-    If r.hasFormula Then
-      fmlacells(j, 1) = r.Row - ws.Range("Weights").Cells(1, 1).Row + 1
-      fmlacells(j, 2) = r.Column - ws.Range("Weights").Cells(1, 1).Column + 1
-      fmlacells(j, 3) = r.FormulaLocal
-      j = j - 1
-    End If
-  Next r
-  
+    For Each r In ws.Range("Weights").Cells
+      If r.hasFormula Then
+        fmlacells(j, 1) = r.Row - ws.Range("Weights").Cells(1, 1).Row + 1
+        fmlacells(j, 2) = r.Column - ws.Range("Weights").Cells(1, 1).Column + 1
+        fmlacells(j, 3) = r.FormulaLocal
+        j = j - 1
+      End If
+    Next r
+  End If
 lbl_archive:
   loss_start = ws.Range("totloss").Value
+  'loss_best = loss_start
 lbl_run_new:
-  Call initRpropNextWeights(ws)
+  Call initNextWeights(ws)
 
   Dim nrowsBatch As Long, iRoll As Long, nRoll As Long, iRepBatch As Long
   nRoll = Int((szTrain - szBatch) / roll)
+  ws.Calculate
   While epoch > 0
+    loss_lastEpoch_train = ws.Range("totloss").Value
+    loss_lastEpoch_test = ws.Range("totloss_t").Value
 lbl_SGD_init_batch:
     For j = 0 To nLayers
       nrowsBatch = ws.Range("D_" & j & "i").Rows.Count
@@ -101,8 +106,16 @@ lbl_SGD_init_batch:
       For iRepBatch = 1 To repBatch
 lbl_update:
         ws.Calculate
+        Application.StatusBar = "Epoch:" & epoch & " Batch:" & iRoll & " Step:" & iRepBatch & " |Previous epoch's exit losses: test=" & loss_lastEpoch_test & " train=" & loss_lastEpoch_train
+'        If ws.Range("totloss") < loss_best Then
+'          loss_best = ws.Range("totloss")
+'          ws.Range("bestWeights").Value2 = ws.Range("Weights").Value2
+'        End If
         ws.Range("prevState").Value2 = ws.Range("WorkRange").Value2
-        ws.Range("Weights").Value2 = ws.Range("rpropNextWeights").Value2
+        ws.Range("Weights").Value2 = ws.Range("nextWeights").Value2
+        For j = LBound(fmlacells, 1) To UBound(fmlacells, 1)
+          ws.Range("Weights").Cells(fmlacells(j, 1), fmlacells(j, 2)).FormulaLocal = fmlacells(j, 3)
+        Next j
 lbl_post_update:
         Select Case ws.Range("method").Value
           Case "bp": 'nothing to do
@@ -114,7 +127,9 @@ lbl_post_update:
           Case "rprop": 'has weight backtracking
             ws.Calculate
             If ws.Range("totloss") >= loss_last Then
+              
               For Each r In ws.Range("Weights").Cells
+                r.Select
                 If Trim(r.Formula) <> "" And IsNumeric(r.Formula) Then
                   If Sgn(r.Offset(0, d).Value) <> Sgn(r.Offset(u, d).Value) Then
                     r.Value = r.Offset(u, 0).Value
@@ -124,6 +139,18 @@ lbl_post_update:
             End If
             ws.Range("prevRPROP").Value2 = ws.Range("rprop").Value2
             
+          Case "rmsprop": 'decaying history
+            ws.Calculate
+            If ws.Range("totloss") >= loss_last Then
+              For Each r In ws.Range("Weights").Cells
+                If Trim(r.Formula) <> "" And IsNumeric(r.Formula) Then
+                  If Sgn(r.Offset(0, d).Value) <> Sgn(r.Offset(u, d).Value) Then
+                    r.Value = r.Offset(u, 0).Value
+                  End If
+                End If
+              Next r
+            End If
+            ws.Range("prevRMSPROP").Value2 = ws.Range("rmsprop").Value2
           Case Else:
           
         End Select
@@ -137,23 +164,31 @@ lbl_SGD_roll_batch:
       ws.Names("yobs").RefersTo = "='" & ws.Name & "'!" & ws.Range("yobs").Offset(0, roll).AddressLocal
       
     Next iRoll
+'    If ws.Range("useBestWeightsPerEpoch") = True Then
+'      ws.Range("Weights").Value2 = ws.Range("bestWeights").Value2
+'      For j = LBound(fmlacells, 1) To UBound(fmlacells, 1)
+'          ws.Range("Weights").Cells(fmlacells(j, 1), fmlacells(j, 2)).FormulaLocal = fmlacells(j, 3)
+'        Next j
+'      ws.Calculate
+'    End If
+lbl_SGD_restore_fullbatch:
+    For j = 0 To nLayers
+      nrowsBatch = ws.Range("D_" & j & "i").Rows.Count
+      ws.Names("D_" & j).RefersTo = "='" & ws.Name & "'!" & ws.Range("D_" & j & "i").AddressLocal
+    Next j
+    nrowsBatch = ws.Range("yhati").Rows.Count
+    ws.Names("yhat").RefersTo = "='" & ws.Name & "'!" & ws.Range("yhati").AddressLocal
+    nrowsBatch = ws.Range("yobsi").Rows.Count
+    ws.Names("yobs").RefersTo = "='" & ws.Name & "'!" & ws.Range("yobsi").AddressLocal
+    ws.Names("loss").RefersTo = "='" & ws.Name & "'!" & ws.Range("lossi").AddressLocal
+    
+    ws.Calculate
     epoch = epoch - 1
   Wend
-  For j = LBound(fmlacells, 1) To UBound(fmlacells, 1)
-    ws.Range("Weights").Cells(fmlacells(j, 1), fmlacells(j, 2)).FormulaLocal = fmlacells(j, 3)
-  Next j
-lbl_SGD_restore_fullbatch:
-  For j = 0 To nLayers
-    nrowsBatch = ws.Range("D_" & j & "i").Rows.Count
-    ws.Names("D_" & j).RefersTo = "='" & ws.Name & "'!" & ws.Range("D_" & j & "i").AddressLocal
-  Next j
-  nrowsBatch = ws.Range("yhati").Rows.Count
-  ws.Names("yhat").RefersTo = "='" & ws.Name & "'!" & ws.Range("yhati").AddressLocal
-  nrowsBatch = ws.Range("yobsi").Rows.Count
-  ws.Names("yobs").RefersTo = "='" & ws.Name & "'!" & ws.Range("yobsi").AddressLocal
-  ws.Names("loss").RefersTo = "='" & ws.Name & "'!" & ws.Range("lossi").AddressLocal
+'  For j = LBound(fmlacells, 1) To UBound(fmlacells, 1)
+'    ws.Range("Weights").Cells(fmlacells(j, 1), fmlacells(j, 2)).FormulaLocal = fmlacells(j, 3)
+'  Next j
   
-  ws.Calculate
 lbl_msgbox:
   Dim msg As String
   msg = "Trained " & ws.Range("epoch").Value & " epochs of "

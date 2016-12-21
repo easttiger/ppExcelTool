@@ -309,20 +309,21 @@ Function isContainedBy(rngSmall As Range, rngBig As Range) As Boolean
   
 End Function
 
-Sub initRpropNextWeights(ws As Worksheet)
+Sub initNextWeights(ws As Worksheet)
   Dim i&, j&
   For i = 1 To ws.Range("Weights").Rows.Count
     For j = 1 To ws.Range("Weights").Columns.Count
       If Trim(ws.Range("Weights").Cells(i, j).Formula) <> "" Then
         If ws.Range("Weights").Cells(i, j).hasFormula Then
-          ws.Range("rpropNextWeights").Cells(i, j).Formula = ws.Range("Weights").Cells(i, j).Formula
+          ws.Range("nextWeights").Cells(i, j).Formula = ws.Range("Weights").Cells(i, j).Formula
         Else
           '=IF(method = ""rprop-"", $L$3 - SIGN($B$3) * $L$64, IF(method= ""bp"", $L$3 - $B$3 * learningRate, IF(method=""rprop"", $L$3 - SIGN($B$3) * $L$64, NA())))
-          ws.Range("rpropNextWeights").Cells(i, j).Formula = Replace(Replace(Replace( _
-            "=IF(method = ""rprop-"", $L$3 - SIGN($B$3) * $L$64, IF(method= ""bp"", $L$3 - $B$3 * learningRate, IF(method=""rprop"", $L$3 - SIGN($B$3) * $L$64, NA())))", _
-            "$L$3", ws.Range("Weights").Cells(i, j).AddressLocal), _
-            "$B$3", ws.Range("Grads").Cells(i, j).AddressLocal), _
-            "$L$64", ws.Range("rprop").Cells(i, j).AddressLocal)
+          ws.Range("nextWeights").Cells(i, j).Formula = Replace(Replace(Replace(Replace( _
+            "=IF(method = ""rprop-"", @Weights@ - SIGN(@Grads@) * @rprop@, IF(method= ""bp"", @Weights@ - @Grads@ * learningRate, IF(method=""rprop"", @Weights@ - SIGN(@Grads@) * @rprop@, IF(method=""rmsprop"", @Weights@ - @Grads@*learningRate/SQRT(MAX(0.00000000001,@rmsprop@)), NA()))))", _
+            "@Weights@", ws.Range("Weights").Cells(i, j).AddressLocal), _
+            "@Grads@", ws.Range("Grads").Cells(i, j).AddressLocal), _
+            "@rprop@", ws.Range("rprop").Cells(i, j).AddressLocal), _
+            "@rmsprop@", ws.Range("rmsprop").Cells(i, j).AddressLocal)
         End If
       End If
     Next j
