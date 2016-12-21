@@ -83,10 +83,10 @@ lbl_set_buttons:
     .Cells(1, 1).Name = "'" & shtDes.Name & "'!train"
     Call colorRangeBorder(.Cells, 10)
     
-    .Cells(1, 2).Value = "Repeat"
+    .Cells(1, 2).Value = "#Epoch"
     With .Cells(2, 2)
       .Value = 100
-      .Name = "'" & shtDes.Name & "'!repeat"
+      .Name = "'" & shtDes.Name & "'!epoch"
       .Font.Color = RGB(255, 0, 0)
       .NumberFormat = "General"
     End With
@@ -142,7 +142,85 @@ lbl_set_buttons:
       .Font.Color = RGB(255, 0, 0)
       .NumberFormat = "General"
     End With
-      
+    .Cells(1, 9).Value = "Batch Size"
+    With .Cells(2, 9)
+      .Value = "max"
+      .Name = "'" & shtDes.Name & "'!batch_size"
+      .Font.Color = RGB(255, 0, 0)
+      .NumberFormat = "General"
+      .EntireColumn.ColumnWidth = 8
+      With .Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="max,1,5,30"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .InputTitle = ""
+        .ErrorTitle = ""
+        .InputMessage = ""
+        .ErrorMessage = ""
+        .ShowInput = True
+        .ShowError = False
+      End With
+    End With
+    .Cells(1, 10).Value = "#Step/Batch"
+    With .Cells(2, 10)
+      .Value = 1
+      .Name = "'" & shtDes.Name & "'!batch_steps"
+      .Font.Color = RGB(255, 0, 0)
+      .NumberFormat = "General"
+      .EntireColumn.ColumnWidth = 10
+      With .Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="1,2,5,10,100"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .InputTitle = ""
+        .ErrorTitle = ""
+        .InputMessage = ""
+        .ErrorMessage = ""
+        .ShowInput = True
+        .ShowError = False
+      End With
+    End With
+    .Cells(1, 11).Value = "#Layers"
+    With .Cells(2, 11)
+      .Value = h_dim(2)
+      .Name = "'" & shtDes.Name & "'!nLayers"
+      .Font.Color = RGB(255, 0, 0)
+      .NumberFormat = "General"
+      With .Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:=h_dim(2)
+        .IgnoreBlank = True
+        .InCellDropdown = False
+        .InputTitle = ""
+        .ErrorTitle = ""
+        .InputMessage = ""
+        .ErrorMessage = ""
+        .ShowInput = False
+        .ShowError = True
+      End With
+    End With
+    .Cells(1, 12).Value = "Batch roll"
+    With .Cells(2, 12)
+      .Value = 1
+      .Name = "'" & shtDes.Name & "'!roll"
+      .Font.Color = RGB(255, 0, 0)
+      .NumberFormat = "General"
+      With .Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="1,2,5"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .InputTitle = ""
+        .ErrorTitle = ""
+        .InputMessage = ""
+        .ErrorMessage = ""
+        .ShowInput = True
+        .ShowError = False
+      End With
+    End With
+    
   End With
   With btnRange.Offset(0, -1).resize(2, 1)
     .Merge
@@ -253,6 +331,7 @@ lbl_parse_ii:
   Next r
   road.Cells(1, 1).resize(nx, 1).Name = "'" & shtDes.Name & "'!N_0"
   road.Cells(1, 1).Offset(0, 1).resize(nx, n).Name = "'" & shtDes.Name & "'!D_0"
+  road.Cells(1, 1).Offset(0, 1).resize(nx, n).Name = "'" & shtDes.Name & "'!D_0i"
   road.Cells(1, 1).Offset(0, 1 + n).resize(nx, ntest).Name = "'" & shtDes.Name & "'!E_0"
   Dim v As Range: Set v = shtDes.Range("D_0")
   Call colorRangeBorder(v, 9)
@@ -286,6 +365,7 @@ lbl_parse_hiddenlayers:
       Set v = road.Cells(k, 1).Offset(1, 1).resize(h_dim(3 + j), n)
       v.FormulaArray = xlActfuncFormula("logit", W.Name.Name, ans)
       v.Name = "'" & shtDes.Name & "'!D_" & j
+      v.Name = "'" & shtDes.Name & "'!D_" & j & "i"
       Call colorRangeBorder(v, 10)
       'test data
       ans = u.Name.Name
@@ -329,6 +409,7 @@ lbl_parse_yhat:
   Set q = road.Cells(k + 1, 1)
   q.Offset(0, -1).Value = "yhat"
   q.Offset(0, 1).resize(ny, n).Name = "'" & shtDes.Name & "'!yhat"
+  q.Offset(0, 1).resize(ny, n).Name = "'" & shtDes.Name & "'!yhati"
   Call colorRangeBorder(shtDes.Range("yhat"), 5)
   q.Offset(0, 1 + n).resize(ny, ntest).Name = "'" & shtDes.Name & "'!that"
   Call colorRangeBorder(shtDes.Range("that"), 8)
@@ -356,6 +437,7 @@ lbl_parse_lossfunction:
     c.Offset(0, -1).Value = "loss:train"
     c.Name = "'" & shtDes.Name & "'!totloss"
     c.Offset(0, 1).resize(1, n).Name = "'" & shtDes.Name & "'!loss"
+    c.Offset(0, 1).resize(1, n).Name = "'" & shtDes.Name & "'!lossi"
     c.Offset(0, -2).Font.Color = RGB(255, 255, 0)
     c.Offset(0, -3).Value = "loss:test"
     c.Offset(0, -2).Name = "'" & shtDes.Name & "'!totloss_t"
@@ -367,6 +449,7 @@ lbl_parse_yobs:
   Set q = road.Cells(k + 1, 1)
   q.Offset(0, -1).Value = "yobs"
   q.Offset(0, 1).resize(ny, n).Name = "'" & shtDes.Name & "'!yobs"
+  q.Offset(0, 1).resize(ny, n).Name = "'" & shtDes.Name & "'!yobsi"
   Call colorRangeBorder(shtDes.Range("yobs"), 9)
   q.Offset(0, 1 + n).resize(ny, ntest).Name = "'" & shtDes.Name & "'!tobs"
   Call colorRangeBorder(shtDes.Range("tobs"), 8)

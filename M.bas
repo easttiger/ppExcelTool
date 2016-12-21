@@ -50,10 +50,20 @@ Sub train(ws As Worksheet)
 On Error GoTo 0
   Dim timer As Double: timer = Now()
   Dim lr As Double: lr = ws.Range("learningRate").Value
-  Dim rep As Long: rep = ws.Range("repeat").Value
+  Dim szTrain As Long: szTrain = ws.Range("D_0i").Columns.Count
+  Dim szBatch As Long: szBatch = szTrain
+  If Application.IsNumber(ws.Range("batch_size").Value) Then
+    szBatch = ws.Range("batch_size").Value + 0
+    If szBatch > szTrain Then szBatch = szTrain
+  End If
+  
+  Dim repBatch As Long: repBatch = ws.Range("batch_steps").Value
+  Dim epoch As Long: epoch = ws.Range("epoch").Value
   Dim d As Long: d = ws.Range("Grads").Cells(1, 1).Column - ws.Range("Weights").Cells(1, 1).Column
   Dim u As Long: u = ws.Range("prevState").Cells(1, 1).Row - ws.Range("Weights").Cells(1, 1).Row
   Dim r As Range, i As Long, j As Long, loss_last As Double, loss_start As Double
+  Dim nLayers As Long: nLayers = ws.Range("nLayers").Value
+  Dim roll As Long: roll = ws.Range("roll").Value
 lbl_vbmemory:
   For Each r In ws.Range("Weights").Cells
     If r.hasFormula Then j = j + 1
@@ -72,45 +82,81 @@ lbl_archive:
   loss_start = ws.Range("totloss").Value
 lbl_run_new:
   Call initRpropNextWeights(ws)
-  While rep > 0
-    loss_last = ws.Range("totloss").Value
-    ws.Calculate
-    ws.Range("prevState").Value2 = ws.Range("WorkRange").Value2
-    ws.Range("Weights").Value2 = ws.Range("rpropNextWeights").Value2
-lbl_post_update:
-    Select Case ws.Range("method").Value
-      Case "bp": 'nothing to do
-      
-      Case "rprop-": 'no weight backtracking
-        
-        ws.Range("prevRPROP").Value2 = ws.Range("rprop").Value2
-        
-      Case "rprop": 'has weight backtracking
+
+  Dim nrowsBatch As Long, iRoll As Long, nRoll As Long, iRepBatch As Long
+  nRoll = Int((szTrain - szBatch) / roll)
+  While epoch > 0
+lbl_SGD_init_batch:
+    For j = 0 To nLayers
+      nrowsBatch = ws.Range("D_" & j & "i").Rows.Count
+      ws.Names("D_" & j).RefersTo = "='" & ws.Name & "'!" & ws.Range("D_" & j & "i").Cells(1, 1).resize(nrowsBatch, szBatch).AddressLocal
+    Next j
+    nrowsBatch = ws.Range("yhati").Rows.Count
+    ws.Names("yhat").RefersTo = "='" & ws.Name & "'!" & ws.Range("yhati").Cells(1, 1).resize(nrowsBatch, szBatch).AddressLocal
+    nrowsBatch = ws.Range("yobsi").Rows.Count
+    ws.Names("yobs").RefersTo = "='" & ws.Name & "'!" & ws.Range("yobsi").Cells(1, 1).resize(nrowsBatch, szBatch).AddressLocal
+    ws.Names("loss").RefersTo = "='" & ws.Name & "'!" & ws.Range("lossi").Cells(1, 1).resize(1, szBatch).AddressLocal
+    For iRoll = 0 To nRoll Step 1
+      loss_last = ws.Range("totloss").Value
+      For iRepBatch = 1 To repBatch
+lbl_update:
         ws.Calculate
-        If ws.Range("totloss") >= loss_last Then
-          For Each r In ws.Range("Weights").Cells
-            If Trim(r.Formula) <> "" And IsNumeric(r.Formula) Then
-              If Sgn(r.Offset(0, d).Value) <> Sgn(r.Offset(u, d).Value) Then
-                r.Value = r.Offset(u, 0).Value
-              End If
+        ws.Range("prevState").Value2 = ws.Range("WorkRange").Value2
+        ws.Range("Weights").Value2 = ws.Range("rpropNextWeights").Value2
+lbl_post_update:
+        Select Case ws.Range("method").Value
+          Case "bp": 'nothing to do
+          
+          Case "rprop-": 'no weight backtracking
+            
+            ws.Range("prevRPROP").Value2 = ws.Range("rprop").Value2
+            
+          Case "rprop": 'has weight backtracking
+            ws.Calculate
+            If ws.Range("totloss") >= loss_last Then
+              For Each r In ws.Range("Weights").Cells
+                If Trim(r.Formula) <> "" And IsNumeric(r.Formula) Then
+                  If Sgn(r.Offset(0, d).Value) <> Sgn(r.Offset(u, d).Value) Then
+                    r.Value = r.Offset(u, 0).Value
+                  End If
+                End If
+              Next r
             End If
-          Next r
-        End If
-        ws.Range("prevRPROP").Value2 = ws.Range("rprop").Value2
-        
-      Case Else:
+            ws.Range("prevRPROP").Value2 = ws.Range("rprop").Value2
+            
+          Case Else:
+          
+        End Select
+      Next iRepBatch
+lbl_SGD_roll_batch:
       
-    End Select
-    
-    rep = rep - 1
+      nrowsBatch = ws.Range("D_0i").Rows.Count
+      ws.Names("D_0").RefersTo = "='" & ws.Name & "'!" & ws.Range("D_0").Offset(0, roll).AddressLocal
+      
+      nrowsBatch = ws.Range("yobsi").Rows.Count
+      ws.Names("yobs").RefersTo = "='" & ws.Name & "'!" & ws.Range("yobs").Offset(0, roll).AddressLocal
+      
+    Next iRoll
+    epoch = epoch - 1
   Wend
   For j = LBound(fmlacells, 1) To UBound(fmlacells, 1)
     ws.Range("Weights").Cells(fmlacells(j, 1), fmlacells(j, 2)).FormulaLocal = fmlacells(j, 3)
   Next j
+lbl_SGD_restore_fullbatch:
+  For j = 0 To nLayers
+    nrowsBatch = ws.Range("D_" & j & "i").Rows.Count
+    ws.Names("D_" & j).RefersTo = "='" & ws.Name & "'!" & ws.Range("D_" & j & "i").AddressLocal
+  Next j
+  nrowsBatch = ws.Range("yhati").Rows.Count
+  ws.Names("yhat").RefersTo = "='" & ws.Name & "'!" & ws.Range("yhati").AddressLocal
+  nrowsBatch = ws.Range("yobsi").Rows.Count
+  ws.Names("yobs").RefersTo = "='" & ws.Name & "'!" & ws.Range("yobsi").AddressLocal
+  ws.Names("loss").RefersTo = "='" & ws.Name & "'!" & ws.Range("lossi").AddressLocal
+  
   ws.Calculate
 lbl_msgbox:
   Dim msg As String
-  msg = "Trained " & rep & " steps of "
+  msg = "Trained " & ws.Range("epoch").Value & " epochs of "
   Select Case ws.Range("method").Value
     Case "bp:"
       msg = "Backprop with learning rate " & lr
@@ -121,7 +167,7 @@ lbl_msgbox:
       msg = "rprop with learning rate resilience scalars {" & ws.Range("rpropdn").Value & ", " & ws.Range("rpropup").Value & _
             "} and learning rate bounds [" & ws.Range("rpropfloor").Value & " to " & ws.Range("rpropcap").Value & "]"
   End Select
-  MsgBox "Trained " & ws.Range("repeat").Value & " steps of " & msg & vbCr & "Time spent:  " & Format(Now() - timer, "hh:mm:ss") & " (hh:mm:ss)" & vbCr & _
+  MsgBox "Trained " & ws.Range("epoch").Value & " epochs of " & msg & vbCr & "Time spent:  " & Format(Now() - timer, "hh:mm:ss") & " (hh:mm:ss)" & vbCr & _
         "loss before = " & loss_start & vbCr & "loss now = " & ws.Range("totloss").Value
 End Sub
 

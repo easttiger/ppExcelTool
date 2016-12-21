@@ -265,10 +265,10 @@ End Function
 
 Sub plotNetOnInstanceSheet(ws As Worksheet)
   Call clearShapes(ws)
-  Dim i&, j&, k&, M&, n&, nlayers&: nlayers = getNumLayers(ws)
+  Dim i&, j&, k&, M&, n&, nLayers&: nLayers = getNumLayers(ws)
   
   Dim r As Range, c As Range, W As Range
-  For M = 1 To nlayers
+  For M = 1 To nLayers
     k = 1
     For Each r In ws.Range("N_" & M - 1).Cells
       createNeuron M * 120, k * 45, r.Value, Replace(r.Address, "$", ""), ws
@@ -288,15 +288,15 @@ Sub plotNetOnInstanceSheet(ws As Worksheet)
 lbl_yhat:
   k = 1
   For Each r In ws.Range("yhat").Columns(1).Offset(0, -1).Cells
-    createNeuron (nlayers + 1) * 120, k * 45, r.Value, Replace(r.Address, "$", ""), ws
+    createNeuron (nLayers + 1) * 120, k * 45, r.Value, Replace(r.Address, "$", ""), ws
     k = k + 1
   Next r
-  Set W = ws.Range("W_" & nlayers)
+  Set W = ws.Range("W_" & nLayers)
   Dim yhatNamesRange As Range: Set yhatNamesRange = ws.Range("yhat").Columns(1).Offset(0, -1)
   For i = 1 To W.Rows.Count
     For j = 1 To W.Columns.Count
       If W.Cells(i, j).Formula <> "=0" And CStr(yhatNamesRange.Cells(j, 1).Value) <> "1" Then
-        addConnector ws.Range("N_" & nlayers - 1).Cells(i, 1).AddressLocal, yhatNamesRange.Cells(j, 1).AddressLocal, ws, W.Cells(i, j).AddressLocal
+        addConnector ws.Range("N_" & nLayers - 1).Cells(i, 1).AddressLocal, yhatNamesRange.Cells(j, 1).AddressLocal, ws, W.Cells(i, j).AddressLocal
       End If
     Next j
   Next i
