@@ -91,6 +91,14 @@ lbl_run_new:
   While epoch > 0
     loss_lastEpoch_train = ws.Range("totloss").Value
     loss_lastEpoch_test = ws.Range("totloss_t").Value
+lbl_RMS_reset_initial_accumulator:
+    If ws.Range("method").Value Like "rmsprop*" Then
+      For Each r In ws.Range("prevRMSPROP").Cells
+        If IsNumeric(r.Value) And Not IsEmpty(r.Formula) Then
+          r.Value = 0
+        End If
+      Next r
+    End If
 lbl_SGD_init_batch:
     For j = 0 To nLayers
       nrowsBatch = ws.Range("D_" & j & "i").Rows.Count
@@ -141,15 +149,15 @@ lbl_post_update:
             
           Case "rmsprop": 'decaying history
             ws.Calculate
-            If ws.Range("totloss") >= loss_last Then
-              For Each r In ws.Range("Weights").Cells
-                If Trim(r.Formula) <> "" And IsNumeric(r.Formula) Then
-                  If Sgn(r.Offset(0, d).Value) <> Sgn(r.Offset(u, d).Value) Then
-                    r.Value = r.Offset(u, 0).Value
-                  End If
-                End If
-              Next r
-            End If
+'            If ws.Range("totloss") >= loss_last Then
+'              For Each r In ws.Range("Weights").Cells
+'                If Trim(r.Formula) <> "" And IsNumeric(r.Formula) Then
+'                  If Sgn(r.Offset(0, d).Value) <> Sgn(r.Offset(u, d).Value) Then
+'                    r.Value = r.Offset(u, 0).Value
+'                  End If
+'                End If
+'              Next r
+'            End If
             ws.Range("prevRMSPROP").Value2 = ws.Range("rmsprop").Value2
           Case Else:
           
@@ -192,6 +200,7 @@ lbl_SGD_restore_fullbatch:
 lbl_msgbox:
   Dim msg As String
   msg = "Trained " & ws.Range("epoch").Value & " epochs of "
+  ws.Calculate
   Select Case ws.Range("method").Value
     Case "bp:"
       msg = "Backprop with learning rate " & lr
