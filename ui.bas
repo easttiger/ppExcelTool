@@ -36,7 +36,7 @@ End Function
 Function oo(ByVal strActFunc As String, ParamArray inputNeurons() As Variant)
   Select Case LCase(strActFunc)
     Case "l", "logit", "logistic": oo = "logit"
-    Case "mlogit": oo = "mlogit"
+    Case "mlogit", "softmax": oo = "mlogit"
     Case "id": oo = "id"
     Case "lin", "linear": oo = "linear"
     Case Else: oo = CVErr(xlErrNA): Exit Function
@@ -93,7 +93,6 @@ End Sub
 
 Sub addConnector(ByVal strStartCell As String, ByVal strEndCell As String, Optional ws As Worksheet, Optional ByVal strName As String)
   If ws Is Nothing Then Set ws = shtPrep
-  Debug.Print strStartCell, strEndCell
   Dim sh As Shape
   Set sh = ws.Shapes.addConnector(msoConnectorStraight, 0, 0, 0, 0)
   If strName <> "" Then sh.Name = "Conn_" & Replace(strName, "$", "")
@@ -123,19 +122,19 @@ Function logit(ByVal x)
 End Function
 
 Function pre(neuron As Range) As Range
-  Dim i&, j&, k&, M(1 To 3) As Long, s As String: s = neuron.FormulaLocal
+  Dim i&, j&, k&, m(1 To 3) As Long, s As String: s = neuron.FormulaLocal
   i = InStr(s, "("): j = InStr(s, ")")
   If Not (i > 0 And j > i) Then Exit Function
   For k = i + 1 To j - 1
     Select Case Mid(s, k, 1)
-      Case "(": M(1) = M(1) + 1
-      Case ")": M(1) = M(1) - 1
-      Case "[": M(2) = M(2) + 1
-      Case "]": M(2) = M(2) - 1
-      Case "{": M(3) = M(3) + 1
-      Case "}": M(3) = M(3) - 1
+      Case "(": m(1) = m(1) + 1
+      Case ")": m(1) = m(1) - 1
+      Case "[": m(2) = m(2) + 1
+      Case "]": m(2) = m(2) - 1
+      Case "{": m(3) = m(3) + 1
+      Case "}": m(3) = m(3) - 1
       Case ",":
-        If M(1) = 0 And M(2) = 0 And M(3) = 0 Then
+        If m(1) = 0 And m(2) = 0 And m(3) = 0 Then
           'not inside any braces=> next arg begins
           Set pre = neuron.Worksheet.Range(Trim(Mid(s, k + 1, j - 1 - k)))
           Exit Function
@@ -265,26 +264,26 @@ End Function
 
 Sub plotNetOnInstanceSheet(ws As Worksheet)
   Call clearShapes(ws)
-  Dim i&, j&, k&, M&, n&, nLayers&: nLayers = getNumLayers(ws)
+  Dim i&, j&, k&, m&, n&, nLayers&: nLayers = getNumLayers(ws)
   
   Dim r As Range, c As Range, W As Range
-  For M = 1 To nLayers
+  For m = 1 To nLayers
     k = 1
-    For Each r In ws.Range("N_" & M - 1).Cells
-      createNeuron M * 120, k * 45, r.Value, Replace(r.Address, "$", ""), ws
+    For Each r In ws.Range("N_" & m - 1).Cells
+      createNeuron m * 120, k * 45, r.Value, Replace(r.Address, "$", ""), ws
       k = k + 1
     Next r
-    If M > 1 Then
-      Set W = ws.Range("W_" & M - 1)
+    If m > 1 Then
+      Set W = ws.Range("W_" & m - 1)
       For i = 1 To W.Rows.Count
         For j = 1 To W.Columns.Count
-          If W.Cells(i, j).Formula <> "=0" And CStr(ws.Range("N_" & M - 1).Cells(j, 1).Value) <> "1" Then
-            addConnector ws.Range("N_" & M - 2).Cells(i, 1).AddressLocal, ws.Range("N_" & M - 1).Cells(j, 1).AddressLocal, ws, W.Cells(i, j).AddressLocal
+          If W.Cells(i, j).Formula <> "=0" And CStr(ws.Range("N_" & m - 1).Cells(j, 1).Value) <> "1" Then
+            addConnector ws.Range("N_" & m - 2).Cells(i, 1).AddressLocal, ws.Range("N_" & m - 1).Cells(j, 1).AddressLocal, ws, W.Cells(i, j).AddressLocal
           End If
         Next j
       Next i
     End If
-  Next M
+  Next m
 lbl_yhat:
   k = 1
   For Each r In ws.Range("yhat").Columns(1).Offset(0, -1).Cells
@@ -300,6 +299,7 @@ lbl_yhat:
       End If
     Next j
   Next i
+  ws.Shapes.SelectAll: Selection.ShapeRange.Group.Select
 End Sub
 
 Function isContainedBy(rngSmall As Range, rngBig As Range) As Boolean

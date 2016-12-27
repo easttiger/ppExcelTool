@@ -12,7 +12,7 @@ Option Explicit
 Private Sub Worksheet_BeforeDoubleClick(ByVal Target As Range, Cancel As Boolean)
   Dim xlcalcb4: xlcalcb4 = Application.Calculation
   If Target.Cells(1, 1).AddressLocal = Me.Range("train").AddressLocal Then
-    Cancel = True: Application.EnableEvents = False: Application.ScreenUpdating = False: Application.Calculation = xlCalculationManual
+    Cancel = True: Application.EnableEvents = (DEBUG_LEVEL > 0): Application.ScreenUpdating = (DEBUG_LEVEL > 0): Application.Calculation = xlCalculationManual
 On Error GoTo lbl_exit_run100i
     Call train(Me)
 lbl_exit_run100i:

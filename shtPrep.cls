@@ -9,6 +9,33 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = True
 Option Explicit
 
+Private Sub aug_quadratic()
+On Error GoTo 0
+  Dim header As Range: Set header = Me.Range("tbl_data[#Headers]")
+  Dim r As Range
+  Dim i&, j&, n&: n = 0
+  For Each r In header.Cells
+    If Trim(LCase(r.Offset(-1, 0).Value)) = "x" Then
+      n = n + 1
+    End If
+  Next r
+  Dim x() As Range: ReDim x(1 To n) As Range
+  i = 0
+  For Each r In header.Cells
+    If Trim(LCase(r.Offset(-1, 0).Value)) = "x" Then
+      i = i + 1
+      Set x(i) = r
+    End If
+  Next r
+  For i = 1 To n
+    For j = i To n
+      Set r = header.Cells(1, 1).End(xlToRight).Offset(0, 1)
+      r.Value = x(i).Value & x(j).Value
+      r.Offset(1, 0).FormulaLocal = "=" & Replace(x(i).Offset(1, 0).AddressLocal & "*" & x(j).Offset(1, 0).AddressLocal, "$", "")
+    Next j
+  Next i
+End Sub
+
 Private Sub cbtn_clearShapes_Click()
   clearShapes Me
 End Sub
@@ -19,7 +46,7 @@ On Error GoTo e
   Application.EnableEvents = False
   Application.Calculation = xlCalculationManual
   Application.ScreenUpdating = False
-  Dim ans, x, i&, j&, k&, h&, n&, ntest&, M&, r As Range, c As Range, q As Range
+  Dim ans, x, i&, j&, k&, h&, n&, ntest&, m&, r As Range, c As Range, q As Range
 lbl_initialize:
   ReDim x(1 To Sheets.Count)
   For i = 1 To Sheets.Count
@@ -64,10 +91,10 @@ lbl_get_xycount:
   Dim ny As Byte: ny = Application.Evaluate("=COUNTA(" & shtPrep.Name & "!yhat)")
 lbl_set_road:
   Dim road As Range: Set road = shtDes.Columns(2 + _
-                                h_dim(1) * 2).Cells(3, 1).resize(h_dim(2) + ny * 2 + 1, 1)
+                                h_dim(1) * 2).Cells(3, 1).Resize(h_dim(2) + ny * 2 + 1, 1)
 lbl_set_buttons:
   Dim btnRange As Range: Set btnRange = road.Cells(1, 1).Offset(-2, 0)
-  With btnRange.resize(2, 1)
+  With btnRange.Resize(2, 1)
     .Merge
     .EntireRow.HorizontalAlignment = xlCenter
     .EntireRow.VerticalAlignment = xlCenter
@@ -112,7 +139,7 @@ lbl_set_buttons:
     
     .Cells(1, 4).Value = "lrate"
     With .Cells(2, 4)
-      .Value = 0.01
+      .Value = 0.005
       .Name = "'" & shtDes.Name & "'!learningRate"
       .Font.Color = RGB(255, 0, 0)
     End With
@@ -222,7 +249,7 @@ lbl_set_buttons:
     End With
     .Cells(1, 13).Value = "rmsprop AR"
     With .Cells(2, 13)
-      .Value = 0.8
+      .Value = 0.9
       .Name = "'" & shtDes.Name & "'!rmsprop_ar_coef"
       .Font.Color = RGB(255, 0, 0)
       .NumberFormat = "General"
@@ -259,9 +286,70 @@ lbl_set_buttons:
 '        .ShowError = False
 '      End With
 '    End With
+    .Cells(1, 15).Value = "ExitDebug"
+    With .Cells(2, 15)
+      .Value = False
+      .Name = "'" & shtDes.Name & "'!EXIT_NOW"
+      .Font.Color = RGB(255, 0, 0)
+      .NumberFormat = "General"
+      .EntireColumn.ColumnWidth = 9
+      With .Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="FALSE,TRUE"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .InputTitle = ""
+        .ErrorTitle = ""
+        .InputMessage = ""
+        .ErrorMessage = ""
+        .ShowInput = True
+        .ShowError = True
+      End With
+    End With
+    .Cells(1, 16).Value = "DebugLevel"
+    With .Cells(2, 16)
+      .Value = 0
+      .Name = "'" & shtDes.Name & "'!DEBUG_LEVEL"
+      .Font.Color = RGB(255, 0, 0)
+      .NumberFormat = "General"
+      .EntireColumn.ColumnWidth = 9.33
+      With .Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="0,1,2,3"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .InputTitle = ""
+        .ErrorTitle = ""
+        .InputMessage = ""
+        .ErrorMessage = ""
+        .ShowInput = True
+        .ShowError = True
+      End With
+    End With
+    
+    .Cells(1, 17).Value = "DROPOUT"
+    With .Cells(2, 17)
+      .Value = False
+      .Name = "'" & shtDes.Name & "'!DO_DROPOUT"
+      .Font.Color = RGB(255, 0, 0)
+      .NumberFormat = "General"
+      .EntireColumn.ColumnWidth = 9.33
+      With .Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="FALSE,TRUE"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .InputTitle = ""
+        .ErrorTitle = ""
+        .InputMessage = ""
+        .ErrorMessage = ""
+        .ShowInput = True
+        .ShowError = True
+      End With
+    End With
     
   End With
-  With btnRange.Offset(0, -1).resize(2, 1)
+  With btnRange.Offset(0, -1).Resize(2, 1)
     .Merge
     .WrapText = True
     .Orientation = 0
@@ -275,7 +363,7 @@ lbl_set_buttons:
     .Cells(1, 1).Name = "'" & shtDes.Name & "'!imputeNoise"
     Call colorRangeBorder(.Cells, 10)
   End With
-  With btnRange.Offset(0, -2).resize(2, 1)
+  With btnRange.Offset(0, -2).Resize(2, 1)
     .Merge
     .WrapText = True
     .Orientation = 0
@@ -289,7 +377,7 @@ lbl_set_buttons:
     .Cells(1, 1).Name = "'" & shtDes.Name & "'!trimWeiMats"
     Call colorRangeBorder(.Cells, 10)
   End With
-  With btnRange.Offset(0, -3).resize(2, 1)
+  With btnRange.Offset(0, -3).Resize(2, 1)
     .Merge
     .WrapText = True
     .Orientation = 0
@@ -303,7 +391,7 @@ lbl_set_buttons:
     .Cells(1, 1).Name = "'" & shtDes.Name & "'!removePlot"
     Call colorRangeBorder(.Cells, 10)
   End With
-  With btnRange.Offset(0, -4).resize(2, 1)
+  With btnRange.Offset(0, -4).Resize(2, 1)
     .Merge
     .WrapText = True
     .Orientation = 0
@@ -318,14 +406,14 @@ lbl_set_buttons:
     Call colorRangeBorder(.Cells, 10)
   End With
   
-  With btnRange.Offset(0, -5).resize(2, 1)
+  With btnRange.Offset(0, -5).Resize(2, 1)
     .Cells(1, 1).Value = "#Weights"
     .Cells(1, 1).Font.Italic = False
     .Cells(2, 1).Name = "'" & shtDes.Name & "'!nWeights"
     .Cells(2, 1).FormulaLocal = "=COUNTA(Weights)-COUNTIF(Weights,0)"
   End With
   
-  With btnRange.Offset(0, -6).resize(2, 1)
+  With btnRange.Offset(0, -6).Resize(2, 1)
     .Merge
     .WrapText = True
     .Orientation = 0
@@ -358,27 +446,27 @@ lbl_parse_ii:
       k = k + 1
       Set c = road.Cells(k, 1): c.Value = r.Value
       If CStr(r.Value) = "1" Then
-        c.Offset(0, 1).resize(1, n + ntest).Value = 1
+        c.Offset(0, 1).Resize(1, n + ntest).Value = 1
       ElseIf r.FormulaLocal Like "=ii(*)" Then
         Set pr = pre(r)
-        c.Offset(0, 1).resize(1, pr.Rows.Count).FormulaArray = "=TRANSPOSE(" & shtPrep.Name & "!" & pr.AddressLocal & ")"
-        c.Offset(0, 1).resize(1, pr.Rows.Count).Value2 = c.Offset(0, 1).resize(1, pr.Rows.Count).Value2
+        c.Offset(0, 1).Resize(1, pr.Rows.Count).FormulaArray = "=TRANSPOSE(" & shtPrep.Name & "!" & pr.AddressLocal & ")"
+        c.Offset(0, 1).Resize(1, pr.Rows.Count).Value2 = c.Offset(0, 1).Resize(1, pr.Rows.Count).Value2
       Else
       
       End If
     End If
   Next r
-  road.Cells(1, 1).resize(nx, 1).Name = "'" & shtDes.Name & "'!N_0"
-  road.Cells(1, 1).Offset(0, 1).resize(nx, n).Name = "'" & shtDes.Name & "'!D_0"
-  road.Cells(1, 1).Offset(0, 1).resize(nx, n).Name = "'" & shtDes.Name & "'!D_0i"
-  road.Cells(1, 1).Offset(0, 1 + n).resize(nx, ntest).Name = "'" & shtDes.Name & "'!E_0"
+  road.Cells(1, 1).Resize(nx, 1).Name = "'" & shtDes.Name & "'!N_0"
+  road.Cells(1, 1).Offset(0, 1).Resize(nx, n).Name = "'" & shtDes.Name & "'!D_0"
+  road.Cells(1, 1).Offset(0, 1).Resize(nx, n).Name = "'" & shtDes.Name & "'!D_0i"
+  road.Cells(1, 1).Offset(0, 1 + n).Resize(nx, ntest).Name = "'" & shtDes.Name & "'!E_0"
   Dim v As Range: Set v = shtDes.Range("D_0")
   Call colorRangeBorder(v, 9)
   Dim u As Range: Set u = shtDes.Range("E_0") 'test
   Call colorRangeBorder(u, 8)
 lbl_initialize_W_matrix:
   Dim W As Range, Wpre As Range, DW As Range
-  Set W = road.Cells(1, 1).Offset(0, -h_dim(3 + 1)).resize(nx, h_dim(3 + 1))
+  Set W = road.Cells(1, 1).Offset(0, -h_dim(3 + 1)).Resize(nx, h_dim(3 + 1))
   For i = 1 To W.Rows.Count
     W.Rows(i).Formula = "=RNORM1()/ AVERAGE(" & shtDes.Range("D_0").Rows(i).AddressLocal & ")"
   Next i
@@ -399,27 +487,27 @@ lbl_parse_hiddenlayers:
     j = j + 1
     If j <= h_dim(2) Then
       If j > Me.Range("HiddenLayers").Count Then Debug.Assert hcol.AddressLocal = shtPrep.Range("final_transform").AddressLocal
-      road.Cells(k, 1).Offset(1, 0).resize(h_dim(3 + j), 1).Name = "'" & shtDes.Name & "'!N_" & j
+      road.Cells(k, 1).Offset(1, 0).Resize(h_dim(3 + j), 1).Name = "'" & shtDes.Name & "'!N_" & j
       ans = v.Name.Name
-      Set v = road.Cells(k, 1).Offset(1, 1).resize(h_dim(3 + j), n)
+      Set v = road.Cells(k, 1).Offset(1, 1).Resize(h_dim(3 + j), n)
       v.FormulaArray = xlActfuncFormula("logit", W.Name.Name, ans)
       v.Name = "'" & shtDes.Name & "'!D_" & j
       v.Name = "'" & shtDes.Name & "'!D_" & j & "i"
       Call colorRangeBorder(v, 10)
       'test data
       ans = u.Name.Name
-      Set u = road.Cells(k, 1).Offset(1, 1 + n).resize(h_dim(3 + j), ntest)
+      Set u = road.Cells(k, 1).Offset(1, 1 + n).Resize(h_dim(3 + j), ntest)
       u.FormulaArray = xlActfuncFormula("logit", W.Name.Name, ans)
       u.Name = "'" & shtDes.Name & "'!E_" & j
       Call colorRangeBorder(u, 8)
       
       Set Wpre = W
       If j < h_dim(2) Then
-        Set W = road.Cells(k, 1).Offset(1, -h_dim(3 + j + 1)).resize(h_dim(3 + j), h_dim(3 + j + 1))
+        Set W = road.Cells(k, 1).Offset(1, -h_dim(3 + j + 1)).Resize(h_dim(3 + j), h_dim(3 + j + 1))
         W.Formula = "=RNORM1(0,0.1)"
       Else
         'to output
-        Set W = road.Cells(k, 1).Offset(1, -ny).resize(h_dim(3 + j), ny)
+        Set W = road.Cells(k, 1).Offset(1, -ny).Resize(h_dim(3 + j), ny)
         W.Formula = "=RNORM1(0,0.1)"
       End If
       W.Value2 = W.Value2 'make const"
@@ -447,10 +535,10 @@ lbl_parse_hiddenlayers:
 lbl_parse_yhat:
   Set q = road.Cells(k + 1, 1)
   q.Offset(0, -1).Value = "yhat"
-  q.Offset(0, 1).resize(ny, n).Name = "'" & shtDes.Name & "'!yhat"
-  q.Offset(0, 1).resize(ny, n).Name = "'" & shtDes.Name & "'!yhati"
+  q.Offset(0, 1).Resize(ny, n).Name = "'" & shtDes.Name & "'!yhat"
+  q.Offset(0, 1).Resize(ny, n).Name = "'" & shtDes.Name & "'!yhati"
   Call colorRangeBorder(shtDes.Range("yhat"), 5)
-  q.Offset(0, 1 + n).resize(ny, ntest).Name = "'" & shtDes.Name & "'!that"
+  q.Offset(0, 1 + n).Resize(ny, ntest).Name = "'" & shtDes.Name & "'!that"
   Call colorRangeBorder(shtDes.Range("that"), 8)
   For Each r In Me.Range("yhat").Cells
     If Trim(r.FormulaLocal) <> "" Then
@@ -458,13 +546,19 @@ lbl_parse_yhat:
       Set c = road.Cells(k, 1): c.Value = r.Value
     End If
   Next r
-  
-  If q.Value = "o:mlogit" Then
+  W.Name = "'" & shtDes.Name & "'!fintrans"
+  If q.Value = "o:mlogit" Or q.Value = "o:softmax" Then
     W.FormulaLocal = "=1"
     Call colorRangeBorder(W, 5)
+  ElseIf q.Value = "o:id" Then
+    W.FormulaLocal = "=0"
+    For i = 1 To W.Rows.Count
+      W.Cells(i, i).FormulaLocal = "=1"
+    Next i
+    Call colorRangeBorder(W, 5)
   End If
-  q.Offset(0, 1).resize(ny, n).FormulaArray = xlActfuncFormula(q.Value, v.Name.Name, W.AddressLocal)
-  q.Offset(0, 1 + n).resize(ny, ntest).FormulaArray = xlActfuncFormula(q.Value, u.Name.Name, W.AddressLocal)
+  q.Offset(0, 1).Resize(ny, n).FormulaArray = xlActfuncFormula(q.Value, v.Name.Name, W.AddressLocal)
+  q.Offset(0, 1 + n).Resize(ny, ntest).FormulaArray = xlActfuncFormula(q.Value, u.Name.Name, W.AddressLocal)
 lbl_parse_lossfunction:
   Set r = Me.Range("loss")
 
@@ -475,22 +569,22 @@ lbl_parse_lossfunction:
     c.Font.Color = RGB(255, 0, 0)
     c.Offset(0, -1).Value = "loss:train"
     c.Name = "'" & shtDes.Name & "'!totloss"
-    c.Offset(0, 1).resize(1, n).Name = "'" & shtDes.Name & "'!loss"
-    c.Offset(0, 1).resize(1, n).Name = "'" & shtDes.Name & "'!lossi"
+    c.Offset(0, 1).Resize(1, n).Name = "'" & shtDes.Name & "'!loss"
+    c.Offset(0, 1).Resize(1, n).Name = "'" & shtDes.Name & "'!lossi"
     c.Offset(0, -2).Font.Color = RGB(255, 255, 0)
     c.Offset(0, -3).Value = "loss:test"
     c.Offset(0, -2).Name = "'" & shtDes.Name & "'!totloss_t"
-    c.Offset(0, 1 + n).resize(1, ntest).Name = "'" & shtDes.Name & "'!tloss"
+    c.Offset(0, 1 + n).Resize(1, ntest).Name = "'" & shtDes.Name & "'!tloss"
   Else
     Err.Raise 1, , "no loss function defined"
   End If
 lbl_parse_yobs:
   Set q = road.Cells(k + 1, 1)
   q.Offset(0, -1).Value = "yobs"
-  q.Offset(0, 1).resize(ny, n).Name = "'" & shtDes.Name & "'!yobs"
-  q.Offset(0, 1).resize(ny, n).Name = "'" & shtDes.Name & "'!yobsi"
+  q.Offset(0, 1).Resize(ny, n).Name = "'" & shtDes.Name & "'!yobs"
+  q.Offset(0, 1).Resize(ny, n).Name = "'" & shtDes.Name & "'!yobsi"
   Call colorRangeBorder(shtDes.Range("yobs"), 9)
-  q.Offset(0, 1 + n).resize(ny, ntest).Name = "'" & shtDes.Name & "'!tobs"
+  q.Offset(0, 1 + n).Resize(ny, ntest).Name = "'" & shtDes.Name & "'!tobs"
   Call colorRangeBorder(shtDes.Range("tobs"), 8)
   For Each r In Me.Range("yobs").Cells
     If Trim(r.FormulaLocal) <> "" Then
@@ -498,27 +592,34 @@ lbl_parse_yobs:
       Set c = road.Cells(k, 1): c.Value = r.Value
       If r.FormulaLocal Like "=yy(*)" Then
         Set pr = pre(r)
-        c.Offset(0, 1).resize(1, pr.Rows.Count).FormulaArray = "=TRANSPOSE(" & shtPrep.Name & "!" & pr.AddressLocal & ")"
-        c.Offset(0, 1).resize(1, pr.Rows.Count).Value2 = c.Offset(0, 1).resize(1, pr.Rows.Count).Value2
+        c.Offset(0, 1).Resize(1, pr.Rows.Count).FormulaArray = "=TRANSPOSE(" & shtPrep.Name & "!" & pr.AddressLocal & ")"
+        c.Offset(0, 1).Resize(1, pr.Rows.Count).Value2 = c.Offset(0, 1).Resize(1, pr.Rows.Count).Value2
       End If
     End If
   Next r
 lbl_fill_observationwise_loss:
+  Dim oneYhat$, oneYobs$
   For Each r In shtDes.Range("loss").Cells
+    oneYhat = Intersect(r.EntireColumn, shtDes.Range("yhat")).AddressLocal
+    oneYobs = Intersect(r.EntireColumn, shtDes.Range("yobs")).AddressLocal
     Select Case strLossFunction
       Case "xen":
-        r.FormulaLocal = "=-SUMPRODUCT(LN(" & Intersect(r.EntireColumn, shtDes.Range("yhat")).AddressLocal & ")," & Intersect(r.EntireColumn, shtDes.Range("yobs")).AddressLocal & ")"
+        r.FormulaLocal = "=-SUMPRODUCT(LN(" & oneYhat & ")," & oneYobs & ")" & _
+                         " + SUMPRODUCT(LN(EXP(" & oneYobs & ")/MMULT(fintrans,EXP(" & oneYobs & ")))," & oneYobs & ")"
       Case "L2":
-        r.FormulaArray = "=SUMSQ(" & Intersect(r.EntireColumn, shtDes.Range("yhat")).AddressLocal & " - " & Intersect(r.EntireColumn, shtDes.Range("yobs")).AddressLocal & ")"
+        r.FormulaArray = "=SUMSQ(" & oneYhat & " - " & oneYobs & ")"
     End Select
   Next r
   
   For Each r In shtDes.Range("tloss").Cells
+    oneYhat = Intersect(r.EntireColumn, shtDes.Range("that")).AddressLocal
+    oneYobs = Intersect(r.EntireColumn, shtDes.Range("tobs")).AddressLocal
     Select Case strLossFunction
       Case "xen":
-        r.FormulaLocal = "=-SUMPRODUCT(LN(" & Intersect(r.EntireColumn, shtDes.Range("that")).AddressLocal & ")," & Intersect(r.EntireColumn, shtDes.Range("tobs")).AddressLocal & ")"
+        r.FormulaLocal = "=-SUMPRODUCT(LN(" & oneYhat & ")," & oneYobs & ")" & _
+                         " + SUMPRODUCT(LN(EXP(" & oneYobs & ")/MMULT(fintrans,EXP(" & oneYobs & ")))," & oneYobs & ")"
       Case "L2":
-        r.FormulaArray = "=SUMSQ(" & Intersect(r.EntireColumn, shtDes.Range("that")).AddressLocal & " - " & Intersect(r.EntireColumn, shtDes.Range("tobs")).AddressLocal & ")"
+        r.FormulaArray = "=SUMSQ(" & oneYhat & " - " & oneYobs & ")"
     End Select
   Next r
 lbl_fill_totloss:
@@ -539,7 +640,7 @@ lbl_name_big_regions:
 lbl_layout_previous_weights:
   With shtDes.UsedRange(shtDes.UsedRange.Count).Offset(2, 0).End(xlToLeft)
     .Value = "Previous"
-    .Offset(1, 0).resize(shtDes.Range("WorkRange").Rows.Count, shtDes.Range("WorkRange").Columns.Count).Name = "'" & shtDes.Name & "'!prevState"
+    .Offset(1, 0).Resize(shtDes.Range("WorkRange").Rows.Count, shtDes.Range("WorkRange").Columns.Count).Name = "'" & shtDes.Name & "'!prevState"
   End With
   shtDes.Range("WorkRange").Copy: shtDes.Range("prevState").PasteSpecial xlPasteFormats
 
@@ -549,30 +650,30 @@ lbl_layout_rprop_weights:
   With shtDes.UsedRange(shtDes.UsedRange.Count).Offset(2, 0).End(xlToLeft)
     .Value = "rprop change size : prev"
     .Offset(0, k).Value = "rprop change size : current"
-    .Offset(1, 0).resize(shtDes.Range("WorkRange").Rows.Count, shtDes.Range("WorkRange").Columns.Count).Name = "'" & shtDes.Name & "'!rpropUse"
+    .Offset(1, 0).Resize(shtDes.Range("WorkRange").Rows.Count, shtDes.Range("WorkRange").Columns.Count).Name = "'" & shtDes.Name & "'!rpropUse"
   End With
  
   
   shtDes.Range("WorkRange").Copy: shtDes.Range("rpropUse").PasteSpecial xlPasteFormats
   shtDes.Range("WorkRange").Copy: shtDes.Range("rpropUse").PasteSpecial xlPasteValues
-  shtDes.Range("rpropUse").Cells(1, 1).resize(shtDes.Range("Grads").Rows.Count, shtDes.Range("Grads").Columns.Count).Name = "'" & shtDes.Name & "'!prevRPROP"
-  shtDes.Range("rpropUse").Cells(1, 1 + k).resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!rprop"
+  shtDes.Range("rpropUse").Cells(1, 1).Resize(shtDes.Range("Grads").Rows.Count, shtDes.Range("Grads").Columns.Count).Name = "'" & shtDes.Name & "'!prevRPROP"
+  shtDes.Range("rpropUse").Cells(1, 1 + k).Resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!rprop"
   
 lbl_layout_rmsprop_weights:
   With shtDes.UsedRange(shtDes.UsedRange.Count).Offset(2, 0).End(xlToLeft)
     .Value = "rmsprop AR squared weights : prev"
     .Offset(0, k).Value = "rmsprop AR squared weights : current"
-    .Offset(1, 0).resize(shtDes.Range("WorkRange").Rows.Count, shtDes.Range("WorkRange").Columns.Count).Name = "'" & shtDes.Name & "'!rmspropUse"
+    .Offset(1, 0).Resize(shtDes.Range("WorkRange").Rows.Count, shtDes.Range("WorkRange").Columns.Count).Name = "'" & shtDes.Name & "'!rmspropUse"
   End With
   shtDes.Range("WorkRange").Copy: shtDes.Range("rmspropUse").PasteSpecial xlPasteFormats
   shtDes.Range("WorkRange").Copy: shtDes.Range("rmspropUse").PasteSpecial xlPasteValues
-  shtDes.Range("rmspropUse").Cells(1, 1).resize(shtDes.Range("Grads").Rows.Count, shtDes.Range("Grads").Columns.Count).Name = "'" & shtDes.Name & "'!prevRMSPROP"
-  shtDes.Range("rmspropUse").Cells(1, 1 + k).resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!rmsprop"
+  shtDes.Range("rmspropUse").Cells(1, 1).Resize(shtDes.Range("Grads").Rows.Count, shtDes.Range("Grads").Columns.Count).Name = "'" & shtDes.Name & "'!prevRMSPROP"
+  shtDes.Range("rmspropUse").Cells(1, 1 + k).Resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!rmsprop"
   
   h = shtDes.Range("rmspropUse").Rows.Count + 2
 '  shtDes.Range("rmspropUse").Cells(h, 1).resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!bestWeights"
 '  shtDes.Range("Weights").Copy: shtDes.Range("bestWeights").PasteSpecial xlPasteFormats
-  shtDes.Range("rmspropUse").Cells(h, 1 + k).resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!nextWeights"
+  shtDes.Range("rmspropUse").Cells(h, 1 + k).Resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!nextWeights"
   shtDes.Range("Weights").Copy: shtDes.Range("nextWeights").PasteSpecial xlPasteFormats
   
   Call initNextWeights(shtDes)
@@ -630,7 +731,7 @@ Private Sub cbtn_getAllNeurons_Click()
       Call emitConnector(r, Me)
     End If
   Next r
-  
+  shtPrep.Shapes.SelectAll
   Application.EnableEvents = True
 End Sub
 
@@ -708,6 +809,11 @@ On Error GoTo e
     Cancel = True
     Call setup_input_output
   End If
+  
+  If Target.Cells(1, 1).AddressLocal = shtPrep.Range("Augment_2nd_order").Cells(1, 1).AddressLocal Then
+    Cancel = True
+    Call aug_quadratic
+  End If
 e:
 End Sub
 
@@ -730,14 +836,14 @@ On Error GoTo e
   If p(3).Row >= p(2).Row Then
     shtPrep.Range(p(2), p(3)).Value = ""
   End If
-  shtPrep.Range("dataStart").Offset(1, 0).resize(nrow - 1, 1).Formula = "=IF(RAND() > 0.3, ""train"", ""test"")"
-  shtPrep.Range("dataStart").Offset(1, 0).resize(nrow - 1, 1).Value2 = shtPrep.Range("dataStart").Offset(1, 0).resize(nrow - 1, 1).Value2
-  shtPrep.Range("dataStart").Offset(-1, 1).resize(1, ncol).Value = ""
-  shtPrep.ListObjects("tbl_data").resize shtPrep.Range("dataStart").resize(nrow, ncol + 1)
+  shtPrep.Range("dataStart").Offset(1, 0).Resize(nrow - 1, 1).Formula = "=IF(RAND() > 0.3, ""train"", ""test"")"
+  shtPrep.Range("dataStart").Offset(1, 0).Resize(nrow - 1, 1).Value2 = shtPrep.Range("dataStart").Offset(1, 0).Resize(nrow - 1, 1).Value2
+  shtPrep.Range("dataStart").Offset(-1, 1).Resize(1, ncol).Value = ""
+  shtPrep.ListObjects("tbl_data").Resize shtPrep.Range("dataStart").Resize(nrow, ncol + 1)
   With shtPrep.ListObjects("tbl_data").Sort
       .SortFields.Clear
       .SortFields.Add Key:=Range("tbl_data[[#All],[as]]"), SortOn:=xlSortOnValues, Order:=xlDescending, DataOption:=xlSortNormal
-      .Header = xlYes
+      .header = xlYes
       .MatchCase = False
       .Orientation = xlTopToBottom
       .SortMethod = xlPinYin
