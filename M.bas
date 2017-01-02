@@ -14,41 +14,81 @@ Function rnorm1(Optional mu As Double = 0#, Optional sd As Double = 1#)
 End Function
 
 Function xlActfuncFormula(ByVal strFuncName As String, Optional ByVal arg1 As String, _
-                    Optional ByVal arg2 As String, Optional ByVal arg3 As String)
-  Dim res As String
+                    Optional ByVal arg2 As String, Optional ByVal arg3 As String, _
+                    Optional returnDerivativeFunction As Boolean = False)
+  Dim res$
   Select Case LCase(Trim(strFuncName))
     Case "logistic", "logit":
       'logit = tanh(x / 2) / 2 + 0.5
-      res = "=TANH(MMULT(TRANSPOSE(" & arg1 & ")," & arg2 & ")/2)/2+0.5"
+      If returnDerivativeFunction Then
+        res = arg1 & "*(1-" & arg1 & ")"
+      Else
+        res = "=TANH(MMULT(TRANSPOSE(" & arg1 & ")," & arg2 & ")/2)/2+0.5"
+      End If
+    Case "tanh":
+      If returnDerivativeFunction Then
+        res = "(1-" & arg1 & ")*(1+" & arg1 & ")"
+      Else
+        res = "=TANH(MMULT(TRANSPOSE(" & arg1 & ")," & arg2 & "))"
+      End If
+    Case "relu":
+      If returnDerivativeFunction Then
+        res = "IF(" & arg1 & ">0,1,0)"
+      Else
+        res = "=IF(0<MMULT(TRANSPOSE(" & arg1 & ")," & arg2 & ")," & "MMULT(TRANSPOSE(" & arg1 & ")," & arg2 & "),0)"
+      End If
     Case "mlogit", "o:mlogit", "o:softmax", "softmax":
-      res = "=EXP(" & arg1 & ")/MMULT(TRANSPOSE(" & arg2 & "),EXP(" & arg1 & "))"
+      If returnDerivativeFunction Then
+        res = CVErr(xlErrNA)
+      Else
+        res = "=EXP(" & arg1 & ")/MMULT(TRANSPOSE(" & arg2 & "),EXP(" & arg1 & "))"
+      End If
     Case "lin", "linear", "o:lin", "o:linear":
-      res = "=MMULT(TRANSPOSE(" & arg2 & ")," & arg1 & ")"
+      If returnDerivativeFunction Then
+        res = CVErr(xlErrNA)
+      Else
+        res = "=MMULT(TRANSPOSE(" & arg2 & ")," & arg1 & ")"
+      End If
     Case "id", "o:id":
-      res = "=" & arg1
+      If returnDerivativeFunction Then
+        res = CVErr(xlErrNA)
+      Else
+        res = "=" & arg1
+      End If
   End Select
   xlActfuncFormula = res
 End Function
 
-Function xlWeiGradFormula(ByVal strLossFunc As String, ByVal totNumLayers As Byte, ByVal layerLevel As Byte)
-  Dim res As String, i&, j&, k&
-lbl_xentropy:
-  If strLossFunc = "xen" And layerLevel <= totNumLayers And layerLevel >= 1 Then
-    res = "D_" & totNumLayers & "*(1-D_" & totNumLayers & ")*(yobs-yhat)"
+
+Function xlWeiGradFormula(ByVal strLossFunc As String, ByVal totNumLayers As Byte, ByVal layerLevel As Byte, Optional ws As Worksheet = Null)
+  Dim res$, i&, j&, k&, deriv$, actfunc$
+  If layerLevel <= totNumLayers + 1 And layerLevel >= 1 Then
+    
+    res = "(yhat-yobs)"
+    actfunc = "logit"
+    If Not IsNull(ws) Then actfunc = ws.Range("N_" & totNumLayers).Cells(2, 1)
+    Select Case LCase(strLossFunc)
+      Case "ls", "leastsquare":
+        'res = "D_" & totNumLayers & "*(1-D_" & totNumLayers & ")*MMULT(fintrans," & res & ")"
+        deriv = xlActfuncFormula(actfunc, "D_" & totNumLayers, , , True)
+        res = deriv & "*MMULT(fintrans," & res & ")"
+      
+      Case "xen", "crossentropy":
+        
+        If layerLevel > totNumLayers Then GoTo e
+        deriv = xlActfuncFormula(actfunc, "D_" & totNumLayers, , , True)
+        res = deriv & "*" & res & ""
+    
+    End Select
+    
     For k = totNumLayers - 1 To layerLevel Step -1
-      res = "D_" & k & "*(1-D_" & k & ")*MMULT(W_" & k + 1 & "," & res & ")"
+      If Not IsNull(ws) Then actfunc = ws.Range("N_" & k).Cells(2, 1)
+      deriv = xlActfuncFormula(actfunc, "D_" & k, , , True)
+      res = deriv & "*MMULT(W_" & k + 1 & "," & res & ")"
     Next k
-    res = "=-MMULT(D_" & layerLevel - 1 & ",TRANSPOSE(" & res & "))"
-    xlWeiGradFormula = res: Exit Function
-  End If
-  
-lbl_L2:
-  If strLossFunc = "L2" And layerLevel <= totNumLayers + 1 And layerLevel >= 1 Then
-    res = "(yhat-yobs)*2"
-    For k = totNumLayers To layerLevel Step -1
-      res = "D_" & k & "*(1-D_" & k & ")*MMULT(W_" & (k + 1) & "," & res & ")"
-    Next k
+    
     res = "=MMULT(D_" & layerLevel - 1 & ",TRANSPOSE(" & res & "))"
+    
     xlWeiGradFormula = res: Exit Function
   End If
   
@@ -59,7 +99,9 @@ End Function
 Sub train(ws As Worksheet)
 On Error GoTo 0
   If DEBUG_LEVEL > 0 Then Application.ScreenUpdating = True: Application.EnableEvents = True
+  Dim rngTrack As Range
   Dim timer As Double: timer = Now()
+  Dim strMethod$: strMethod = ws.Range("method").Value
   Dim lr As Double: lr = ws.Range("learningRate").Value
   Dim szTrain As Long: szTrain = ws.Range("D_0i").Columns.Count
   Dim szBatch As Long: szBatch = szTrain
@@ -101,6 +143,13 @@ lbl_run_new:
   While epoch > 0
     loss_lastEpoch_train = ws.Range("totloss").Value
     loss_lastEpoch_test = ws.Range("totloss_t").Value
+lbl_rrmsprop_pre:
+    Select Case strMethod
+      Case "rrmsprop-":
+        ws.Range("GradsPrevEpoch").Value2 = ws.Range("Grads").Value2
+        ws.Range("method").Value = "rmsprop"
+        ws.Calculate
+    End Select
 lbl_RMS_reset_initial_accumulator:
     If ws.Range("method").Value Like "rmsprop*" Then
       For Each r In ws.Range("prevRMSPROP").Cells
@@ -122,10 +171,13 @@ lbl_SGD_init_batch:
     
     Dim nDropout As Long, zDropout()
     ReDim zDropout(1 To ws.Range("nWeights").Value, 1 To 2)
+    
+
+    
     For iRoll = 0 To nRoll Step 1
       loss_last = ws.Range("totloss").Value
-      If DEBUG_LEVEL > 0 Then ws.Range("D_0").Select: Stop
-      If DEBUG_LEVEL > 0 Then ws.Range("yobs").Select: Stop
+      If DEBUG_LEVEL > 1 Then ws.Range("D_0").Select: Stop
+      If DEBUG_LEVEL > 1 Then ws.Range("yobs").Select: Stop
       For iRepBatch = 1 To repBatch
 lbl_update:
         ws.Calculate
@@ -141,23 +193,23 @@ lbl_update:
         Next j
   
 lbl_dropout:
-      If DO_DROPOUT Then
-        j = 0
-        For i = 1 To nLayers + 1
-          If DEBUG_LEVEL > 1 Then ws.Range("W_" & i).Select: Stop
-          For Each c In ws.Range("W_" & i).Cells
-            If Left(Trim(c.FormulaLocal), 1) <> "=" Then
-              If Rnd > 0.5 Then
-                j = j + 1
-                Set zDropout(j, 1) = c
-                zDropout(j, 2) = c.FormulaLocal
-                c.FormulaLocal = "=0"
+        If DO_DROPOUT Then
+          j = 0
+          For i = 1 To nLayers + 1
+            If DEBUG_LEVEL > 2 Then ws.Range("W_" & i).Select: Stop
+            For Each c In ws.Range("W_" & i).Cells
+              If Left(Trim(c.FormulaLocal), 1) <> "=" Then
+                If Rnd > 0.5 Then
+                  j = j + 1
+                  Set zDropout(j, 1) = c
+                  zDropout(j, 2) = c.FormulaLocal
+                  c.FormulaLocal = "=0"
+                End If
               End If
-            End If
-          Next c
-        Next i
-        nDropout = j
-      End If
+            Next c
+          Next i
+          nDropout = j
+        End If
 lbl_post_update:
         Select Case ws.Range("method").Value
           Case "bp": 'nothing to do
@@ -173,38 +225,29 @@ lbl_post_update:
               For Each r In ws.Range("Weights").Cells
                 If Trim(r.Formula) <> "" And IsNumeric(r.Formula) Then
                   If Sgn(r.Offset(0, d).Value) <> Sgn(r.Offset(u, d).Value) Then
-                    If DEBUG_LEVEL > 2 Then r.Select: Stop
+                    If DEBUG_LEVEL > 3 Then r.Select: Stop
                     r.Value = r.Offset(u, 0).Value
                   End If
                 End If
               Next r
             End If
-            If DEBUG_LEVEL > 0 Then ws.Range("prevRPROP").Select: Stop
+            If DEBUG_LEVEL > 1 Then ws.Range("prevRPROP").Select: Stop
             ws.Range("prevRPROP").Value2 = ws.Range("rprop").Value2
-            If DEBUG_LEVEL > 0 Then ws.Range("prevRPROP").Select: Stop
+            If DEBUG_LEVEL > 1 Then ws.Range("prevRPROP").Select: Stop
           Case "rmsprop": 'decaying history
             ws.Calculate
-'            If ws.Range("totloss") >= loss_last Then
-'              For Each r In ws.Range("Weights").Cells
-'                If Trim(r.Formula) <> "" And IsNumeric(r.Formula) Then
-'                  If Sgn(r.Offset(0, d).Value) <> Sgn(r.Offset(u, d).Value) Then
-'                    r.Value = r.Offset(u, 0).Value
-'                  End If
-'                End If
-'              Next r
-'            End If
-            If DEBUG_LEVEL > 0 Then ws.Range("prevRMSPROP").Select: Stop
+            If DEBUG_LEVEL > 1 Then ws.Range("prevRMSPROP").Select: Stop
             ws.Range("prevRMSPROP").Value2 = ws.Range("rmsprop").Value2
-            If DEBUG_LEVEL > 0 Then ws.Range("prevRMSPROP").Select: Stop
+            If DEBUG_LEVEL > 1 Then ws.Range("prevRMSPROP").Select: Stop
           Case Else:
           
         End Select
 lbl_restore_dropout:
         If DO_DROPOUT Then
           For j = 1 To nDropout
-            If DEBUG_LEVEL > 2 Then zDropout(j, 1).Select: Stop
+            If DEBUG_LEVEL > 3 Then zDropout(j, 1).Select: Stop
             zDropout(j, 1).FormulaLocal = zDropout(j, 2)
-            If DEBUG_LEVEL > 2 Then zDropout(j, 1).Select: Stop
+            If DEBUG_LEVEL > 3 Then zDropout(j, 1).Select: Stop
           Next j
           ws.Calculate
         End If
@@ -229,9 +272,54 @@ lbl_SGD_restore_fullbatch:
     nrowsBatch = ws.Range("yobsi").Rows.Count
     ws.Names("yobs").RefersTo = "='" & ws.Name & "'!" & ws.Range("yobsi").AddressLocal
     ws.Names("loss").RefersTo = "='" & ws.Name & "'!" & ws.Range("lossi").AddressLocal
+lbl_rrmsprop_post:
     
     ws.Calculate
+    Select Case strMethod
+      Case "rrmsprop-":
+        Dim baselr As Double: baselr = 0.1 / ws.Range("loss").Count * ws.Range("roll").Value
+        Dim ang As Double: ang = Application.Evaluate("=ACOS(SUMPRODUCT(Grads,GradsPrevEpoch)/SQRT(SUMSQ(Grads))/SQRT(SUMSQ(GradsPrevEpoch)))/PI()*180")
+        If Abs(ang) < 30 Then
+          ws.Range("learningRate").Value = ws.Range("learningRate").Value * ws.Range("rpropup").Value
+          If ws.Range("learningRate").Value > 5 * baselr Then ws.Range("learningRate").Value = baselr
+        ElseIf Abs(ang) > 150 Then
+          ws.Range("learningRate").Value = ws.Range("learningRate").Value * ws.Range("rpropdn").Value
+          If ws.Range("learningRate").Value < 0.1 * baselr Then ws.Range("learningRate").Value = baselr
+        Else
+          ws.Range("learningRate").Value = baselr
+        End If
+        
+    End Select
     epoch = epoch - 1
+    
+    Set rngTrack = Nothing
+    Select Case ws.Range("DO_TRACKING").Value
+      Case False:
+      Case True, "loss":
+        Set rngTrack = ws.Range("loss", "tloss")
+      Case "CUSTOM":
+        Set r = ws.Range("tracked").Offset(0, 1)
+        If Trim(r.Formula) <> "" Then
+          Set rngTrack = ws.Range(r, ws.Range("tracked").End(xlToRight))
+        End If
+      Case Else:
+        If existRangeName(ws.Range("DO_TRACKING").Value, ws) Then
+          Call prepareLinearizedTrackingRange(ws.Range("DO_TRACKING").Value, ws)
+          Set r = ws.Range("tracked").Offset(0, 1)
+          Set rngTrack = ws.Range(r, ws.Range("tracked").End(xlToRight))
+        End If
+    End Select
+    If Not rngTrack Is Nothing Then
+      Set r = shtTrace.Cells(100000, 3).End(xlUp).Offset(1, 0)
+      r.Offset(0, -2).Value = Now()
+      r.Offset(0, -1).Value = ws.Range("DO_TRACKING").Value
+      r.Resize(1, rngTrack.Columns.Count).Value2 = rngTrack.Value2
+    End If
+    Select Case strMethod
+      Case "rrmsprop-":
+        ws.Range("method").Value = "rrmsprop-"
+    End Select
+    If DEBUG_LEVEL > 0 Then ws.Range("totloss").Select: Stop
     If EXIT_NOW Then GoTo lbl_msgbox
     
   Wend
@@ -255,6 +343,7 @@ lbl_msgbox:
       msg = "rmsprop with global learning rate=" & ws.Range("learningRate").Value & ", mini batch size=" & _
             ws.Range("batch_size").Value & ", and roll=" & ws.Range("roll").Value
   End Select
+  
   MsgBox "Trained " & ws.Range("epoch").Value & " epochs of " & msg & vbCr & "Time spent:  " & _
         Format(Now() - timer, "hh:mm:ss") & " (hh:mm:ss)" & vbCr & _
         "loss before = " & loss_start & vbCr & "loss now = " & ws.Range("totloss").Value

@@ -46,8 +46,9 @@ On Error GoTo e
   Application.EnableEvents = False
   Application.Calculation = xlCalculationManual
   Application.ScreenUpdating = False
-  Dim ans, x, i&, j&, k&, h&, n&, ntest&, m&, r As Range, c As Range, q As Range
+  Dim ans, x, i&, j&, k&, h&, n&, ntest&, m&, nrow&, ncol&, ncolGrad&, r As Range, c As Range, q As Range
 lbl_initialize:
+  Call cbtnHiddenLayersFit_Click
   ReDim x(1 To Sheets.Count)
   For i = 1 To Sheets.Count
     x(i) = Sheets(i).Name
@@ -62,7 +63,8 @@ lbl_initialize:
     Exit For
 lbl_next_i:
   Next i
-    
+  shtDes.Visible = xlSheetVisible
+  shtDes.Activate
   With shtDes.Cells
       .Interior.Color = RGB(0, 0, 0)
       .Font.ThemeColor = xlThemeColorDark1
@@ -79,8 +81,8 @@ lbl_get_hidden_layer_width:
     If ans > 0 Then h_dim(2) = h_dim(2) + 1 'stores num hidden layers
     h_dim(1) = Application.Max(h_dim(1), ans) 'stores max hidden layer width
   Next hcol
-lbl_final_transform:
-  Set hcol = Me.Range("final_transform")
+lbl_last_layer:
+  Set hcol = Me.Range("last_layer")
   ans = Application.CountA(hcol)
   j = h_dim(2) + 1: h_dim(3 + j) = ans
   h_dim(3) = h_dim(3) + ans 'stores total hidden neuron count
@@ -125,7 +127,7 @@ lbl_set_buttons:
       .Font.Color = RGB(255, 0, 0)
       With .Validation
         .Delete
-        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="bp,rprop,rprop-,rmsprop"
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="bp,rprop,rprop-,rmsprop,rrmsprop-"
         .IgnoreBlank = True
         .InCellDropdown = True
         .InputTitle = ""
@@ -286,7 +288,7 @@ lbl_set_buttons:
 '        .ShowError = False
 '      End With
 '    End With
-    .Cells(1, 15).Value = "ExitDebug"
+    .Cells(1, 15).Value = "Exit"
     With .Cells(2, 15)
       .Value = False
       .Name = "'" & shtDes.Name & "'!EXIT_NOW"
@@ -306,7 +308,7 @@ lbl_set_buttons:
         .ShowError = True
       End With
     End With
-    .Cells(1, 16).Value = "DebugLevel"
+    .Cells(1, 16).Value = "Debug"
     With .Cells(2, 16)
       .Value = 0
       .Name = "'" & shtDes.Name & "'!DEBUG_LEVEL"
@@ -315,7 +317,7 @@ lbl_set_buttons:
       .EntireColumn.ColumnWidth = 9.33
       With .Validation
         .Delete
-        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="0,1,2,3"
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="0,1,2,3,4"
         .IgnoreBlank = True
         .InCellDropdown = True
         .InputTitle = ""
@@ -345,6 +347,27 @@ lbl_set_buttons:
         .ErrorMessage = ""
         .ShowInput = True
         .ShowError = True
+      End With
+    End With
+    
+    .Cells(1, 18).Value = "Tracking"
+    With .Cells(2, 18)
+      .Value = False
+      .Name = "'" & shtDes.Name & "'!DO_TRACKING"
+      .Font.Color = RGB(255, 0, 0)
+      .NumberFormat = "General"
+      .EntireColumn.ColumnWidth = 9.33
+      With .Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="FALSE,CUSTOM,LOSS,Weights,Grads"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .InputTitle = ""
+        .ErrorTitle = ""
+        .InputMessage = ""
+        .ErrorMessage = ""
+        .ShowInput = True
+        .ShowError = False
       End With
     End With
     
@@ -431,7 +454,7 @@ lbl_set_buttons:
 lbl_determine_loss_function:
   Dim strLossFunction As String
   Select Case Trim(Me.Range("loss").Value)
-    Case "e:L2": strLossFunction = "L2"
+    Case "e:LS": strLossFunction = "LS"
     Case "e:xentropy": strLossFunction = "xen"
     Case Else: Err.Raise 1, , "Unknown Loss Function"
   End Select
@@ -483,21 +506,21 @@ lbl_set_1st_col:
   
 lbl_parse_hiddenlayers:
   j = 0
-  For Each hcol In Me.Range(Me.Range("HiddenLayers"), Me.Range("final_transform")).Columns
+  For Each hcol In Me.Range(Me.Range("HiddenLayers"), Me.Range("last_layer")).Columns
     j = j + 1
     If j <= h_dim(2) Then
-      If j > Me.Range("HiddenLayers").Count Then Debug.Assert hcol.AddressLocal = shtPrep.Range("final_transform").AddressLocal
+      If j > Me.Range("HiddenLayers").Count Then Debug.Assert hcol.AddressLocal = shtPrep.Range("last_layer").AddressLocal
       road.Cells(k, 1).Offset(1, 0).Resize(h_dim(3 + j), 1).Name = "'" & shtDes.Name & "'!N_" & j
       ans = v.Name.Name
       Set v = road.Cells(k, 1).Offset(1, 1).Resize(h_dim(3 + j), n)
-      v.FormulaArray = xlActfuncFormula("logit", W.Name.Name, ans)
+      v.FormulaArray = xlActfuncFormula(hcol.Cells(2, 1).Value, W.Name.Name, ans)
       v.Name = "'" & shtDes.Name & "'!D_" & j
       v.Name = "'" & shtDes.Name & "'!D_" & j & "i"
       Call colorRangeBorder(v, 10)
       'test data
       ans = u.Name.Name
       Set u = road.Cells(k, 1).Offset(1, 1 + n).Resize(h_dim(3 + j), ntest)
-      u.FormulaArray = xlActfuncFormula("logit", W.Name.Name, ans)
+      u.FormulaArray = xlActfuncFormula(hcol.Cells(2, 1).Value, W.Name.Name, ans)
       u.Name = "'" & shtDes.Name & "'!E_" & j
       Call colorRangeBorder(u, 8)
       
@@ -606,7 +629,7 @@ lbl_fill_observationwise_loss:
       Case "xen":
         r.FormulaLocal = "=-SUMPRODUCT(LN(" & oneYhat & ")," & oneYobs & ")" & _
                          " + SUMPRODUCT(LN(EXP(" & oneYobs & ")/MMULT(fintrans,EXP(" & oneYobs & ")))," & oneYobs & ")"
-      Case "L2":
+      Case "LS":
         r.FormulaArray = "=SUMSQ(" & oneYhat & " - " & oneYobs & ")"
     End Select
   Next r
@@ -618,64 +641,74 @@ lbl_fill_observationwise_loss:
       Case "xen":
         r.FormulaLocal = "=-SUMPRODUCT(LN(" & oneYhat & ")," & oneYobs & ")" & _
                          " + SUMPRODUCT(LN(EXP(" & oneYobs & ")/MMULT(fintrans,EXP(" & oneYobs & ")))," & oneYobs & ")"
-      Case "L2":
+      Case "LS":
         r.FormulaArray = "=SUMSQ(" & oneYhat & " - " & oneYobs & ")"
     End Select
   Next r
 lbl_fill_totloss:
   shtDes.Range("totloss").FormulaLocal = "=SUM(loss)/COUNT(loss)"
   shtDes.Range("totloss_t").FormulaLocal = "=SUM(tloss)/COUNT(tloss)"
-lbl_fill_gradients:
   
+lbl_label_tracked:
+  With shtDes.Range("yobs").Cells(shtDes.Range("yobs").Rows.Count, 1).Offset(2, -1)
+    .Name = "'" & shtDes.Name & "'!tracked"
+    .Value = "Custom tracking->"
+    .HorizontalAlignment = xlRight
+  End With
+    
+lbl_fill_gradients:
   For j = h_dim(2) + 1 To 1 Step -1
-    shtDes.Range("G_" & j).FormulaArray = xlWeiGradFormula(strLossFunction, h_dim(2), j)
+    shtDes.Range("G_" & j).FormulaArray = xlWeiGradFormula(strLossFunction, h_dim(2), j, shtDes)
   Next j
 lbl_name_big_regions:
   shtDes.Range(shtDes.Range("W_1"), shtDes.Range("W_" & h_dim(2) + 1)).Name = "'" & shtDes.Name & "'!Weights"
   shtDes.Range(shtDes.Range("G_1"), shtDes.Range("G_" & h_dim(2) + 1)).Name = "'" & shtDes.Name & "'!Grads"
   shtDes.Range(shtDes.Range("G_1"), shtDes.Range("W_" & h_dim(2) + 1)).Name = "'" & shtDes.Name & "'!WorkRange"
-  
-  
+  nrow = shtDes.Range("WorkRange").Rows.Count
+  ncol = shtDes.Range("WorkRange").Columns.Count
+  ncolGrad = shtDes.Range("Grads").Columns.Count
   'previous state snapshot
 lbl_layout_previous_weights:
   With shtDes.UsedRange(shtDes.UsedRange.Count).Offset(2, 0).End(xlToLeft)
     .Value = "Previous"
-    .Offset(1, 0).Resize(shtDes.Range("WorkRange").Rows.Count, shtDes.Range("WorkRange").Columns.Count).Name = "'" & shtDes.Name & "'!prevState"
+    .Offset(1, 0).Resize(nrow, ncol).Name = "'" & shtDes.Name & "'!prevState"
+    .Offset(1, 0).Resize(nrow, ncolGrad).Name = "'" & shtDes.Name & "'!prevGrads"
   End With
   shtDes.Range("WorkRange").Copy: shtDes.Range("prevState").PasteSpecial xlPasteFormats
 
 lbl_layout_rprop_weights:
   k = shtDes.Range("W_1").Cells(1, 1).Column - shtDes.Range("G_1").Cells(1, 1).Column
   
-  With shtDes.UsedRange(shtDes.UsedRange.Count).Offset(2, 0).End(xlToLeft)
+  With shtDes.Cells(shtDes.UsedRange.Rows.Count + 2, 1)
     .Value = "rprop change size : prev"
     .Offset(0, k).Value = "rprop change size : current"
-    .Offset(1, 0).Resize(shtDes.Range("WorkRange").Rows.Count, shtDes.Range("WorkRange").Columns.Count).Name = "'" & shtDes.Name & "'!rpropUse"
+    .Offset(1, 0).Resize(nrow, shtDes.Range("WorkRange").Columns.Count).Name = "'" & shtDes.Name & "'!rpropUse"
   End With
  
   
   shtDes.Range("WorkRange").Copy: shtDes.Range("rpropUse").PasteSpecial xlPasteFormats
   shtDes.Range("WorkRange").Copy: shtDes.Range("rpropUse").PasteSpecial xlPasteValues
-  shtDes.Range("rpropUse").Cells(1, 1).Resize(shtDes.Range("Grads").Rows.Count, shtDes.Range("Grads").Columns.Count).Name = "'" & shtDes.Name & "'!prevRPROP"
+  shtDes.Range("rpropUse").Cells(1, 1).Resize(nrow, ncolGrad).Name = "'" & shtDes.Name & "'!prevRPROP"
   shtDes.Range("rpropUse").Cells(1, 1 + k).Resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!rprop"
   
 lbl_layout_rmsprop_weights:
   With shtDes.UsedRange(shtDes.UsedRange.Count).Offset(2, 0).End(xlToLeft)
     .Value = "rmsprop AR squared weights : prev"
     .Offset(0, k).Value = "rmsprop AR squared weights : current"
-    .Offset(1, 0).Resize(shtDes.Range("WorkRange").Rows.Count, shtDes.Range("WorkRange").Columns.Count).Name = "'" & shtDes.Name & "'!rmspropUse"
+    .Offset(1, 0).Resize(nrow, ncol).Name = "'" & shtDes.Name & "'!rmspropUse"
   End With
   shtDes.Range("WorkRange").Copy: shtDes.Range("rmspropUse").PasteSpecial xlPasteFormats
   shtDes.Range("WorkRange").Copy: shtDes.Range("rmspropUse").PasteSpecial xlPasteValues
-  shtDes.Range("rmspropUse").Cells(1, 1).Resize(shtDes.Range("Grads").Rows.Count, shtDes.Range("Grads").Columns.Count).Name = "'" & shtDes.Name & "'!prevRMSPROP"
+  shtDes.Range("rmspropUse").Cells(1, 1).Resize(nrow, ncolGrad).Name = "'" & shtDes.Name & "'!prevRMSPROP"
   shtDes.Range("rmspropUse").Cells(1, 1 + k).Resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!rmsprop"
   
-  h = shtDes.Range("rmspropUse").Rows.Count + 2
+  h = nrow + 2
 '  shtDes.Range("rmspropUse").Cells(h, 1).resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!bestWeights"
 '  shtDes.Range("Weights").Copy: shtDes.Range("bestWeights").PasteSpecial xlPasteFormats
   shtDes.Range("rmspropUse").Cells(h, 1 + k).Resize(shtDes.Range("Weights").Rows.Count, shtDes.Range("Weights").Columns.Count).Name = "'" & shtDes.Name & "'!nextWeights"
   shtDes.Range("Weights").Copy: shtDes.Range("nextWeights").PasteSpecial xlPasteFormats
-  
+  shtDes.Range("rmspropUse").Cells(h, 1).Resize(nrow, ncolGrad).Name = "'" & shtDes.Name & "'!GradsPrevEpoch"
+  shtDes.Range("Grads").Copy: shtDes.Range("GradsPrevEpoch").PasteSpecial xlPasteFormats
   Call initNextWeights(shtDes)
 lbl_init_rprop_weights:
   Dim grad2prevRPROP As Long: grad2prevRPROP = shtDes.Range("Grads").Cells(1, 1).Row - shtDes.Range("prevRPROP").Cells(1, 1).Row
@@ -697,16 +730,18 @@ lbl_init_rmsprop_weights:
       'r.Value = r.Offset(Grad2prevRMSPROP, 0).Value ^ 2
       r.Value = 0
       '=rmsprop_ar_coef*A70+(1-rmsprop_ar_coef)*A3*A3
-      r.Offset(0, k).FormulaLocal = Replace(Replace("=@prevSquare@ + @Grad@^2", _
+      r.Offset(0, k).FormulaLocal = Replace(Replace("=rmsprop_ar_coef*@prevSquare@ + (1-rmsprop_ar_coef)*@Grad@^2", _
                                             "@prevSquare@", r.AddressLocal), _
                                             "@Grad@", r.Offset(Grad2prevRMSPROP, 0).AddressLocal)
     End If
   Next r
   
   shtDes.Calculate
-  'shtDes.Range("bestWeights").Value2 = shtDes.Range("nextWeights").Value2
+  
   shtDes.Visible = xlSheetVisible
   shtDes.Select
+  Application.GoTo shtDes.Range("shrinkWeiMats").Offset(0, -2), True
+  shtDes.Range("epoch").Select
 e:
   Application.Calculation = xlcalcb4
   Application.ScreenUpdating = True
@@ -731,7 +766,6 @@ Private Sub cbtn_getAllNeurons_Click()
       Call emitConnector(r, Me)
     End If
   Next r
-  shtPrep.Shapes.SelectAll
   Application.EnableEvents = True
 End Sub
 
@@ -755,9 +789,9 @@ Private Sub cbtnHiddenLayersAddRow_Click()
   r.EntireRow.Insert xlShiftDown, xlFormatFromLeftOrAbove
 End Sub
 Private Sub cbtnHiddenLayersAddCol_Click()
-  Dim r As Range:  Set r = shtPrep.Range("final_transform")
+  Dim r As Range:  Set r = shtPrep.Range("last_layer")
   r.Insert xlShiftToRight, xlFormatFromLeftOrAbove
-  shtPrep.Names("HiddenLayers").RefersToLocal = "=Prep!" & Range(shtPrep.Range("HiddenLayers"), shtPrep.Range("final_transform").Offset(0, -1)).AddressLocal
+  shtPrep.Names("HiddenLayers").RefersToLocal = "=Prep!" & Range(shtPrep.Range("HiddenLayers"), shtPrep.Range("last_layer").Offset(0, -1)).AddressLocal
 End Sub
 
 
@@ -776,7 +810,7 @@ Private Sub cbtnHiddenLayersFit_Click()
     If r2.Row >= r.Row Then shtPrep.Range(r, r2).EntireRow.Delete
   End If
   ncol = 0
-  Set r2 = shtPrep.Range("final_transform").Offset(0, -1)
+  Set r2 = shtPrep.Range("last_layer").Offset(0, -1)
   Set c = r2
   While Application.CountA(c) = 0
     ncol = ncol + 1

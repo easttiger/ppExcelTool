@@ -26,7 +26,7 @@ lbl_error: strErrFunc = CVErr(xlErrValue)
 
 lbl_return:
   Select Case LCase(strErrFunc)
-    Case "sse": ee = "L2"
+    Case "ls", "sse", "lse", "l2": ee = "LS"
     Case "xen": ee = "xentropy"
     Case Else: ee = strErrFunc
   End Select
@@ -48,6 +48,8 @@ Function nn(ByVal strActFunc As String, ParamArray inputNeurons() As Variant)
   Select Case LCase(strActFunc)
     Case "1": nn = "1"
     Case "l", "logit", "logistic": nn = "logit"
+    Case "relu": nn = "relu"
+    Case "tanh": nn = "tanh"
     Case Else: nn = CVErr(xlErrNA)
   End Select
 End Function
@@ -329,3 +331,30 @@ Sub initNextWeights(ws As Worksheet)
     Next j
   Next i
 End Sub
+
+Function existRangeName(ByVal strName As String, ByRef ws As Worksheet) As Boolean
+  existRangeName = False
+  On Error GoTo e
+  If Len(ws.Range(strName).Address) Then
+    existRangeName = True
+  End If
+e:
+End Function
+
+Sub prepareLinearizedTrackingRange(ByVal strName As String, ByRef ws As Worksheet)
+  If Not existRangeName(strName, ws) Then
+    Exit Sub
+  End If
+  Dim n&, i&, r As Range, c As Range, t As Range
+  Set r = ws.Range(strName)
+  Set t = ws.Range("tracked")
+  For Each c In r.Cells
+    If Trim(c.Value) <> "" Then
+      Set t = t.Offset(0, 1)
+      t.FormulaLocal = "=" & c.AddressLocal
+    End If
+  Next c
+  t.Offset(0, 1).Value = ""
+End Sub
+
+
